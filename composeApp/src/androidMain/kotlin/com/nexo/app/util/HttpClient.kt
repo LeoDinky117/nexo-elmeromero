@@ -8,7 +8,7 @@ import kotlinx.serialization.json.Json
 val client =  HttpClient {
     install(ContentNegotiation){
         json(Json{
-            ignoredUnknownKeys = true
+            ignoreUnknownKeys = true
             prettyPrint = true
             isLenient = true
 

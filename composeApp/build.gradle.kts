@@ -25,7 +25,7 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
 
-            //Motor para androir
+            //Motor para android
             implementation(libs.ktor.client.okhttp)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.content.negotiation)

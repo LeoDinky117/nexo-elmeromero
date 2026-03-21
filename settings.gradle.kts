@@ -4,13 +4,17 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 pluginManagement {
     repositories {
         google {
-            mavenContent {
+            /*mavenContent {
                 includeGroupAndSubgroups("androidx")
                 includeGroupAndSubgroups("com.android")
                 includeGroupAndSubgroups("com.google")
-            }
+            }*/
         }
-        mavenCentral()
+        mavenCentral{
+            /*mavenContent {
+                includeGroupAndSubgroups("org.jetbrains")
+            }*/
+        }
         gradlePluginPortal()
     }
 }
@@ -18,14 +22,25 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories {
         google {
-            mavenContent {
+            /*mavenContent {
                 includeGroupAndSubgroups("androidx")
                 includeGroupAndSubgroups("com.android")
                 includeGroupAndSubgroups("com.google")
-            }
+            }*/
         }
-        mavenCentral()
+        mavenCentral{
+           /* mavenContent {
+                includeGroupAndSubgroups("org.jetbrains")
+                includeGroupAndSubgroups("io.ktor")
+                includeGroupAndSubgroups("com.squareup") //para okHttp y Okio
+                includeGroupAndSubgroups("junit") //para las pruebas
+                includeGroupAndSubgroups("org.slf4j") //para los logs
+                includeGroupAndSubgroups("com.google.guava") //para utilidades de google
+                includeGroupAndSubgroups("org.jspecify")
+            }*/
+        }
     }
 }
 
 include(":composeApp")
+include(":nexo-server")

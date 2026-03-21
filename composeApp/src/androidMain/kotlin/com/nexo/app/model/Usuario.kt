@@ -1,9 +1,8 @@
 package com.nexo.app.model
 
 import kotlinx.serialization.Contextual
-import java.util.Date
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlin.time.Instant
 
 @Serializable
