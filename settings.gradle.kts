@@ -43,4 +43,4 @@ dependencyResolutionManagement {
 }
 
 include(":composeApp")
-include(":nexo-server")
+//include(":nexo-server")
