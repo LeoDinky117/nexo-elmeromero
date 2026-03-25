@@ -2,9 +2,6 @@ package com.example
 
 import org.jetbrains.exposed.sql.Database
 
-
-
-
 import io.ktor.server.application.*
 import db.DatabaseFactory
 

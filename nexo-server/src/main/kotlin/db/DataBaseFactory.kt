@@ -9,22 +9,19 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
+    lateinit var database: Database //Linea agregada
     fun init() {
         try {
-
-
-            Database.connect(createHikariDataSource())
-
+            database = Database.connect(createHikariDataSource())
             // Crea las tablas en la BD si aún no existen
             transaction {
-                SchemaUtils.create(Usuarios, Movimientos)
+                //SchemaUtils.create(Usuarios, Movimientos)
             }
         }catch (e: Exception){
             println("ERROR DE CONEXIÓN: No se pudo conectar a la base de datos...")
             println("Detalle:  ${e.message}")
         }
     }
-
     private fun createHikariDataSource(): HikariDataSource {
         val config = HikariConfig().apply {
             driverClassName = "com.microsoft.sqlserver.jdbc.SQLServerDriver"

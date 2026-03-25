@@ -6,8 +6,8 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    //EL plugin.serialization: Es una herramienta que convierte las clases
-    //de kotlin en texto JSON y viceversa de forma rapida
+    //el plugin.serialization: Es una herramienta que convierte las clases
+    //de kotlin en texto JSON y viceversa de forma rápida
     kotlin("plugin.serialization") version "2.3.0"
 }
 
@@ -29,6 +29,12 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.content.negotiation)
+            val androidMain by getting {
+                dependencies {
+                    implementation(libs.ktor.client.okhttp)
+
+                }
+            }
 
 
         }
@@ -36,9 +42,9 @@ kotlin {
             //dependencias de ktor para la API
             //ktor-client-core (Este es el motor base para enviar y recibir datos)
             implementation(libs.ktor.client.core)
-            //content-negotiation: Es el "traductor". Permite que ktor entienda que lo que viaja por internet es JSON
+            //.content-negotiation: Es el "traductor". Permite que ktor entienda que lo que viaja por internet es JSON
             implementation(libs.ktor.client.content.negotiation)
-            //Es el formato especifico que usara el traductor
+            //Es el formato específico que usara el traductor
             implementation(libs.ktor.serialization.kotlinx.json)
 
             //Motor para iOS
@@ -88,6 +94,7 @@ android {
 }
 
 dependencies {
+    implementation("io.ktor:ktor-client-okhttp-jvm:2.3.12")
     debugImplementation(libs.compose.uiTooling)
 }
 

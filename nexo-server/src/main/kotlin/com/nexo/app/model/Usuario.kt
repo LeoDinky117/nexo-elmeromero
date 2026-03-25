@@ -7,20 +7,18 @@ import kotlin.time.Instant
 
 @Serializable
 data class Usuario(
-    @SerialName("IdUsuario")
-    val idUsuario: Int = 0,
-    @SerialName("Nombre")
-    val nombre: String,
-    @SerialName("Correo")
-    val correo: String,
-    @SerialName("Edad")
-    val edad: Int,
-    @SerialName("Password")
-    val password: String,
+//@SerialName("IdUsuario")
+//val idUsuario: Int = 0, LA BD LOS CREA AUTOMATICAMENTE
 
-    @Contextual
-    @SerialName("FechaRegistro")
-    val fechaRegistro: Instant? = null,
-    @SerialName("Puntos")
-    val puntos: Int = 0
+@SerialName("nombre")
+val nombre: String,
+
+@SerialName("edad")
+val edad: Int,
+
+@SerialName("correo")
+val correo: String,
+
+@SerialName("password")
+val password: String
 )
