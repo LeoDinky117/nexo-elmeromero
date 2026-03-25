@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.com.nexo.app.model.Usuario
+import com.example.com.nexo.app.model.UsuarioLogin
 import db.DatabaseFactory
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -12,6 +13,11 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import db.Usuarios // Asegúrate de que este sea el nombre de tu objeto Table
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
+import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.http.*
 
 fun Application.configureRouting() {
     routing {
@@ -43,6 +49,20 @@ fun Application.configureRouting() {
                 println("Error en SQL: ${e.message}") //Avisa error en la terminal
                 // Si algo falla (ej. correo duplicado), avisamos del error
                 call.respond(HttpStatusCode.InternalServerError, "Error en el servidor: ${e.message}")
+            }
+        }
+
+        post("/login") {
+            val loginReq = call.receive<UsuarioLogin>()
+            val usuarioEncontrado = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                Usuarios.select(
+                    (Usuarios.correo eq loginReq.correo) and (Usuarios.password eq loginReq.password)
+                ).singleOrNull()
+            }
+            if (usuarioEncontrado != null) {
+                call.respond(HttpStatusCode.OK, "Login correcto")
+            }else{
+                call.respond(HttpStatusCode.Unauthorized, "Correo o contraseña incorrectos")
             }
         }
 

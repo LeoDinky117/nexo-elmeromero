@@ -36,6 +36,7 @@ import com.nexo.app.viewmodel.RegistroViewModel
 
 @Composable
 fun RegistroScreen(
+    //Parametros
     navController: NavController,
     viewModel: RegistroViewModel = viewModel(),
     onVolverLogin: () -> Unit
