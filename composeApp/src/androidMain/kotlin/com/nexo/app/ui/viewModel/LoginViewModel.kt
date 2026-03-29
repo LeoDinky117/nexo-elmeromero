@@ -18,49 +18,72 @@ import io.ktor.http.contentType
 import io.ktor.http.*
 import io.ktor.client.call.*
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import com.nexo.app.util.ApiConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class LoginViewModel : ViewModel() {
-    var correo = mutableStateOf("")
+    var correo by mutableStateOf("")
         private set
-    var password = mutableStateOf("")
+    var password by mutableStateOf("")
         private set
     //Estado para manejar el exito del login
     private val _loginExitoso = MutableStateFlow(false)
-    val loginExitoso: StateFlow<Boolean> = _loginExitoso
+    val loginExitoso: MutableStateFlow<Boolean> = _loginExitoso
+    //Estado para controlar el indicador de carga
+    private val _cargando = MutableStateFlow(false)
+    val cargando : StateFlow<Boolean> = _cargando
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {json(Json{ignoreUnknownKeys = true})}
     }
     //__________________________________________
+    //FUNCIONES PARA ACTUALIZAR EL ESTADO DESDE LA SCREEN
     fun onCorreoChange(value: String) {
-        correo.value = value
+        correo = value
     }
     fun onPasswordChange(value: String) {
-        password.value = value
+        password = value
+    }
+    fun resetLoginState() {
+        _loginExitoso.value = false
     }
     fun login() {
-        if (correo.value.isEmpty() || password.value.isEmpty()) {
+        if (correo.isEmpty() || password.isEmpty()) {
             println("Campos vacíos")
             return
         }
         viewModelScope.launch{
+            _cargando.value = true
             try {
-                val respuesta = client.post("http://192.168.1.4:8080/login"){
+                println("DEBUG: Iniciando peticion")
+                val respuesta = client.post(ApiConfig.LOGIN_URL){
                     contentType(ContentType.Application.Json)
-                    setBody(UsuarioLogin(correo.value, password.value))
+                    setBody(UsuarioLogin(correo, password))
                 }
+                println("DEBUG: Respuesta del servidor: ${respuesta.status}")
+
                 if (respuesta.status == HttpStatusCode.OK) {
-                    println("Login exitoso para: ${correo.value}")
-                    _loginExitoso.value = true
+                    println("Login exitoso para: ${correo}")
+                    //Forzamos el cambio al hilo principal para que la UI se entere
+                    withContext(Dispatchers.Main){
+                        _loginExitoso.value = true
+                    }
                 }else{
-                    println("Credenciales Incorrectas")
+                    _loginExitoso.value = false //Estado de error en login
+                    println("Credenciales Incorrectas (Status: ${respuesta.status})")
                 }
             }catch(e: Exception){
                 //println("Error de red: ${e.localizedMessage}")
-                println("Error de red: ${e.message}")
+                println("Error: ${e.message}")
+                e.printStackTrace()//Esto imprime toda la ruta del error en rojo
+            }finally {
+                _cargando.value = false
             }
         }
-        println("Login con ${correo.value}")
+        println("Login con ${correo}")
         // aquí luego irá la API
     }
 }

@@ -9,15 +9,11 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.transactions.transaction
 import db.Usuarios // Asegúrate de que este sea el nombre de tu objeto Table
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import io.ktor.server.request.*
-import io.ktor.server.response.*
-import io.ktor.http.*
 
 fun Application.configureRouting() {
     routing {
@@ -53,17 +49,29 @@ fun Application.configureRouting() {
         }
 
         post("/login") {
-            val loginReq = call.receive<UsuarioLogin>()
-            val usuarioEncontrado = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
-                Usuarios.select(
-                    (Usuarios.correo eq loginReq.correo) and (Usuarios.password eq loginReq.password)
-                ).singleOrNull()
+            try {
+                val loginReq = call.receive<UsuarioLogin>()
+                println("DEBUG: Intento de login para ${loginReq.correo}")
+                //Se ejecuta la búsqueda y sacamos solo el resultado (Si existe o no)
+                val existe = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                    //Ejecutamos si hay alguna fila que coincida
+                    Usuarios.selectAll().where {
+                        (Usuarios.correo eq loginReq.correo) and (Usuarios.password eq loginReq.password)
+                    }.count() > 0 //Si el conteo es mayor a 0, el usuario existe
+                }
+                if (existe){
+                    println("DEGUB: Login exitoso para ${loginReq.correo}")
+                    call.respond(HttpStatusCode.OK, "Login correcto")
+                }else{
+                    println("DEGUB: Credenciales incorrectas")
+                    call.respond(HttpStatusCode.Unauthorized, "Correo o Contraseña incorrectos")
+                }
+            }catch (e: Exception){
+                println("ERROR CRÍTICO EN LOGIN: ${e.localizedMessage}")
+                e.printStackTrace()
+                call.respond(HttpStatusCode.InternalServerError, "Error interno: ${e.message}")
             }
-            if (usuarioEncontrado != null) {
-                call.respond(HttpStatusCode.OK, "Login correcto")
-            }else{
-                call.respond(HttpStatusCode.Unauthorized, "Correo o contraseña incorrectos")
-            }
+
         }
 
         // Ruta de prueba para saber si el servidor responde

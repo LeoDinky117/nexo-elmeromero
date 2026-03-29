@@ -1,4 +1,4 @@
-package com.nexo.app.ui.screens
+package com.nexo.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -8,8 +8,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun InputField(
@@ -39,11 +43,16 @@ fun InputField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (isPassword)
                 PasswordVisualTransformation()
             else
-                androidx.compose.ui.text.input.VisualTransformation.None,
-            textStyle = androidx.compose.ui.text.TextStyle(color = Color.White)
+                VisualTransformation.None,
+            textStyle = TextStyle(
+                color = Color.White,
+                16.sp
+            ),
+            cursorBrush = SolidColor(Color.White)
         )
     }
 }

@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 //--------------------------------
 import androidx.lifecycle.viewModelScope
 import com.nexo.app.model.Usuario
+import com.nexo.app.util.ApiConfig
 import com.nexo.app.util.client
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -16,6 +17,8 @@ import kotlinx.coroutines.launch
 
 class RegistroViewModel : ViewModel() {
 
+    private val _mensajeUI = MutableStateFlow<String?>(null)
+    val mensajeUI: StateFlow<String?> = _mensajeUI
     private val _registroExitoso = MutableStateFlow(false)
     val registroExitoso: StateFlow<Boolean> = _registroExitoso
 
@@ -30,13 +33,19 @@ class RegistroViewModel : ViewModel() {
         private set
     var confirmar = mutableStateOf("")
         private set
+
+    //Función para limpiar el mensaje después de mostrarlo
+    fun mensajeMostrado(){
+        _mensajeUI.value = null
+    }
     fun onNombreChange(value: String) {
         nombre.value = value
     }
     //Le agregué esta función de edad
     fun onEdadChange(value: String) {
-        if (value.all { it.isDigit() })
-        edad.value = value
+        val edadLimpia = value.trim()
+            if (edadLimpia.all { it.isDigit() })
+                edad.value = value
     }
     fun onCorreoChange(value: String) {
         correo.value = value
@@ -48,12 +57,20 @@ class RegistroViewModel : ViewModel() {
         confirmar.value = value
     }
     fun registrar() {
+        //Validación de campos vacíos
         if (nombre.value.isEmpty() || correo.value.isEmpty() || password.value.isEmpty()){
             println("Rellenar campos vacíos")
             return
         }
+        //Validación de coincidencia de contraseñas
         if (password.value != confirmar.value) {
             println("Las contraseñas no coinciden")
+            return
+        }
+        val edadNumerica = edad.value.toIntOrNull() ?: 0
+        if (edadNumerica in 15..25){
+            println("La edad debe permitida es de 15 a 25 años...")
+            println("Por favor ingrese una edad valida")
             return
         }
 
@@ -72,27 +89,30 @@ class RegistroViewModel : ViewModel() {
 
                 println("Enviando JSON de usuario: $nuevoUsuario")
                 //Requests==
-                val respuesta = client.post("http://192.168.1.4:8080/register") {
+                val respuesta = client.post(ApiConfig.REGISTER_URL) {
                     contentType(ContentType.Application.Json)
                     setBody(nuevoUsuario)
                 }
+                //Mensaje en Consola
+                println("--RESPUESTA DEL SERVIDOR--")
+                println("Status Code: ${respuesta.status}")
+
                 if (respuesta.status.value in 200..299) {
                     println("Usuario registrado en el servidor: ${nombre.value}")
                     //Estado de registro exitoso:
                     _registroExitoso.value = true
+                    _mensajeUI.value = "¡Cuenta creada con éxito!"
                 }else{
-                    println("Error del servidor: ${respuesta.status}")
+                    _mensajeUI.value = "Error del servidor: ${respuesta.status}"
                 }
             }catch (e: Exception){
                 //Esto atrapará errores de internet (ej. sin conexion)
+                _mensajeUI.value = "Error de red: no se pudo conectar"
                 println("Error de red: ${e.message}")
             }
         }
-        //Función para "limpiar" el estado después de navegar
-
-
-        // aquí irá la API
     }
+    //Función para "limpiar" el estado después de navegar
     fun resetRegistroEstado(){
         _registroExitoso.value = false
     }

@@ -43,7 +43,7 @@ fun AppNavigation() {
         composable(Routes.HOME) {
             HomeScreen(
                 onIrLogin = {
-                    navController.navigate(Routes.LOGIN)
+                    navController.navigate(Routes.HOME)
                 },
                 onIrRegistro = {
                     navController.navigate(Routes.REGISTRO)
