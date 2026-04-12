@@ -1,4 +1,5 @@
-package com.nexo.app.viewmodel
+package com.nexo.app.ui.viewModel
+
 
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -15,16 +16,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
 import io.ktor.client.request.*
 import io.ktor.http.contentType
-import io.ktor.http.*
 import io.ktor.client.call.*
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import com.nexo.app.data.local.SessionManager
+import com.nexo.app.model.UsuarioResponse
 import com.nexo.app.util.ApiConfig
+import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class LoginViewModel : ViewModel() {
+class LoginViewModel(private val sessionManager: SessionManager) : ViewModel() {
     var correo by mutableStateOf("")
         private set
     var password by mutableStateOf("")
@@ -66,11 +69,18 @@ class LoginViewModel : ViewModel() {
                 println("DEBUG: Respuesta del servidor: ${respuesta.status}")
 
                 if (respuesta.status == HttpStatusCode.OK) {
-                    println("Login exitoso para: ${correo}")
-                    //Forzamos el cambio al hilo principal para que la UI se entere
-                    withContext(Dispatchers.Main){
-                        _loginExitoso.value = true
+                    //1.- Se lee el contenido tal cual está
+                    val usuarioResponse: UsuarioResponse = respuesta.body()
+                    val id = usuarioResponse.idUsuario
+                    if(id > 0) {
+                        sessionManager.saveUserId(id)
+                        println("DEBUG: ID $id guardado exitosamente")
+                        //Forzamos el cambio al hilo principal para que la UI se entere
+                        withContext(Dispatchers.Main){
+                            _loginExitoso.value = true
+                        }
                     }
+
                 }else{
                     _loginExitoso.value = false //Estado de error en login
                     println("Credenciales Incorrectas (Status: ${respuesta.status})")
@@ -79,11 +89,10 @@ class LoginViewModel : ViewModel() {
                 //println("Error de red: ${e.localizedMessage}")
                 println("Error: ${e.message}")
                 e.printStackTrace()//Esto imprime toda la ruta del error en rojo
+                _loginExitoso.value = false
             }finally {
                 _cargando.value = false
             }
         }
-        println("Login con ${correo}")
-        // aquí luego irá la API
     }
 }

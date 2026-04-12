@@ -46,6 +46,7 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             //Es el formato específico que usara el traductor
             implementation(libs.ktor.serialization.kotlinx.json)
+            implementation("androidx.datastore:datastore-preferences:1.2.1")
 
             //Motor para iOS
             iosMain.dependencies { implementation(libs.ktor.client.darwin) }
@@ -88,12 +89,15 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
+
     implementation("io.ktor:ktor-client-okhttp-jvm:2.3.12")
     debugImplementation(libs.compose.uiTooling)
 }

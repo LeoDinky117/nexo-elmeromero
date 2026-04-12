@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.nexo.app.data.local.SessionManager
 import com.nexo.app.navigation.App
 
 class MainActivity : ComponentActivity() {
@@ -13,8 +14,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        // 1. Inicializamos el SessionManager aquí
+        val sessionManager = SessionManager(this)
+
         setContent {
-            App()
+            App(sessionManager)
         }
     }
 }
@@ -22,5 +26,5 @@ class MainActivity : ComponentActivity() {
 @Preview
 @Composable
 fun AppAndroidPreview() {
-    App()
+    //App()
 }

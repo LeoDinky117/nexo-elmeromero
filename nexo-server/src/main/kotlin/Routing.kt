@@ -2,7 +2,9 @@ package com.example
 
 import com.example.com.nexo.app.model.Usuario
 import com.example.com.nexo.app.model.UsuarioLogin
+import com.example.com.nexo.app.model.Movimiento
 import db.DatabaseFactory
+import db.Movimientos
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -14,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import java.time.LocalDate
 
 fun Application.configureRouting() {
     routing {
@@ -57,11 +60,11 @@ fun Application.configureRouting() {
                     //Ejecutamos si hay alguna fila que coincida
                     Usuarios.selectAll().where {
                         (Usuarios.correo eq loginReq.correo) and (Usuarios.password eq loginReq.password)
-                    }.count() > 0 //Si el conteo es mayor a 0, el usuario existe
+                    }.map{it[Usuarios.id]}.singleOrNull() //Aqui se obtiene el ID del usuario o null si no existe
                 }
-                if (existe){
-                    println("DEGUB: Login exitoso para ${loginReq.correo}")
-                    call.respond(HttpStatusCode.OK, "Login correcto")
+                if (existe != null){
+                    println("DEGUB: Login exitoso para ${loginReq.correo}, ID: $existe")
+                    call.respond(HttpStatusCode.OK, com.example.com.nexo.app.model.UsuarioResponse(idUsuario = existe))
                 }else{
                     println("DEGUB: Credenciales incorrectas")
                     call.respond(HttpStatusCode.Unauthorized, "Correo o Contraseña incorrectos")
@@ -77,6 +80,30 @@ fun Application.configureRouting() {
         // Ruta de prueba para saber si el servidor responde
         get("/") {
             call.respondText("Servidor Nexo funcionando!")
+        }
+
+        routing {
+            post("/movimientos/registrar") {
+                try {
+                    // 1. Recibimos el objeto Movimiento que viene de la App
+                    val datosRecibidos = call.receive<Movimiento>()
+
+                    // 2. Lo insertamos en SQL Server usando nuestra DatabaseFactory
+                    DatabaseFactory.dbQuery {
+                        Movimientos.insert {
+                            it[idUsuario] = datosRecibidos.idUsuario.toInt()
+                            it[idCategoria] = datosRecibidos.idCategoria
+                            it[monto] = datosRecibidos.monto
+                            // Convertimos el String de la App a LocalDate de Java para la DB
+                            it[fecha] = java.time.LocalDate.parse(datosRecibidos.fecha)
+                            it[descripcion] = datosRecibidos.descripcion ?: ""
+                        }
+                    }
+                    call.respond(HttpStatusCode.Created, "Movimiento guardado!")
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
+                }
+            }
         }
     }
 }

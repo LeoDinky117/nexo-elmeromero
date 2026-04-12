@@ -9,13 +9,18 @@ import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
+    suspend fun <T> dbQuery(block: suspend () -> T): T =
+        org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction(
+            kotlinx.coroutines.Dispatchers.IO
+        ){block()}
+
     lateinit var database: Database //Linea agregada
     fun init() {
         try {
             database = Database.connect(createHikariDataSource())
             // Crea las tablas en la BD si aún no existen
             transaction {
-                //SchemaUtils.create(Usuarios, Movimientos)
+                SchemaUtils.create(Usuarios, Movimientos)
             }
         }catch (e: Exception){
             println("ERROR DE CONEXIÓN: No se pudo conectar a la base de datos...")

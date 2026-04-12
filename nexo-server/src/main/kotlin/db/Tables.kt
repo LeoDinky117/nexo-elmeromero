@@ -22,10 +22,10 @@ object Usuarios : Table("Usuarios") {
 object Movimientos : Table("Movimientos") {
     val id = integer("IdMovimiento").autoIncrement()
     val idUsuario = integer("IdUsuario") references Usuarios.id
-    val monto = decimal("Monto", 10, 2)
+    val idCategoria = integer("IdCategoria") // Ingreso o Gasto
+    val monto = double("Monto")
     val fecha = date("Fecha")
     val descripcion = varchar("Descripcion", 200)
-    val tipo = varchar("Tipo", 20) // "Ingreso" o "Gasto"
 
     override val primaryKey = PrimaryKey(id)
 }

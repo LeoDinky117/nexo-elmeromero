@@ -22,11 +22,11 @@ class RegistroViewModel : ViewModel() {
     private val _registroExitoso = MutableStateFlow(false)
     val registroExitoso: StateFlow<Boolean> = _registroExitoso
 
+    //Estados para el formulario
     var nombre = mutableStateOf("")
         private set
     var edad = mutableStateOf("")
         private set
-
     var correo = mutableStateOf("")
         private set
     var password = mutableStateOf("")
@@ -44,8 +44,9 @@ class RegistroViewModel : ViewModel() {
     //Le agregué esta función de edad
     fun onEdadChange(value: String) {
         val edadLimpia = value.trim()
-            if (edadLimpia.all { it.isDigit() })
-                edad.value = value
+        if (edadLimpia.isEmpty() || edadLimpia.all { it.isDigit() }){
+            edad.value = edadLimpia
+        }
     }
     fun onCorreoChange(value: String) {
         correo.value = value
@@ -68,7 +69,7 @@ class RegistroViewModel : ViewModel() {
             return
         }
         val edadNumerica = edad.value.toIntOrNull() ?: 0
-        if (edadNumerica in 15..25){
+        if (edadNumerica <15 || edadNumerica > 25){
             println("La edad debe permitida es de 15 a 25 años...")
             println("Por favor ingrese una edad valida")
             return

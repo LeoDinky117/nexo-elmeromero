@@ -27,10 +27,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.nexo.app.data.local.SessionManager
 import com.nexo.app.navigation.Routes
 //import androidx.navigation.compose.rememberNavController
 import com.nexo.app.ui.components.InputField
-import com.nexo.app.viewmodel.LoginViewModel
+import com.nexo.app.ui.viewModel.LoginViewModel
 import org.jetbrains.compose.resources.painterResource
 import nexo.composeapp.generated.resources.Res
 import nexo.composeapp.generated.resources.logo_nexo
@@ -40,9 +41,17 @@ import nexo.composeapp.generated.resources.logo_nexo
 fun LoginScreen(
     navController: NavController,
     onIrARegistro: () -> Unit,
-    viewModel: LoginViewModel = viewModel()
+    sessionManager: SessionManager,
+    //viewModel: LoginViewModel = viewModel()
 
 ) {
+    val viewModel: LoginViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                return LoginViewModel(sessionManager) as T
+            }
+        }
+    )
 
     //validacion de usuario existente y navegacion de login exitoso a home
     val loginExitoso by viewModel.loginExitoso.collectAsState()
@@ -51,18 +60,19 @@ fun LoginScreen(
 
     LaunchedEffect(loginExitoso){
         println("DEBUG: LaunchedEffect disparado. Valor de loginExitoso: $loginExitoso")
-        if (loginExitoso){ //Verificación explícita al loginExitoso
+        if (loginExitoso){ //Verificación explíc
+            // ta al loginExitoso
+            Toast.makeText(context, "¡Bienvenido a tu mundo financiero!", Toast.LENGTH_LONG).show()
             println("DEBUG: Intentando navegar a home...")
             //Navegar a pantalla HOME
-            navController.navigate(Routes.HOME){
-            Toast.makeText(context, "¡Bienvenido a tu mundo financiero!", Toast.LENGTH_LONG).show()
+            navController.navigate(Routes.MAIN_HOME){
                 //Se borra el login del historial para que no se regrese al picar atrás
                 //Es decir si ya está en HOME y le da al boton atras, ya no lo va a regresar al login
                 popUpTo(Routes.LOGIN){inclusive = true}
             }
             //Hacemos un delay para que navegue a home y posterior realice el reset
             //kotlinx.coroutines.delay(500)
-            //viewModel.resetLoginState()
+            viewModel.resetLoginState()
         }
     }
 
