@@ -13,7 +13,7 @@ fun Application.module() {
 
     configureHTTP()
     configureSerialization()
-    configureDatabases()
+    //configureDatabases()
     configureSecurity()
     configureRouting()
 }

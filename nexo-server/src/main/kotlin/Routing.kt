@@ -83,7 +83,7 @@ fun Application.configureRouting() {
         }
 
         routing {
-            post("/movimientos/registrar") {
+            post("/movimientos") {
                 try {
                     // 1. Recibimos el objeto Movimiento que viene de la App
                     val datosRecibidos = call.receive<Movimiento>()
@@ -93,7 +93,8 @@ fun Application.configureRouting() {
                         Movimientos.insert {
                             it[idUsuario] = datosRecibidos.idUsuario.toInt()
                             it[idCategoria] = datosRecibidos.idCategoria
-                            it[monto] = datosRecibidos.monto
+                            it[monto] = datosRecibidos.monto.toBigDecimal()
+                            it[tipo] = datosRecibidos.tipo
                             // Convertimos el String de la App a LocalDate de Java para la DB
                             it[fecha] = java.time.LocalDate.parse(datosRecibidos.fecha)
                             it[descripcion] = datosRecibidos.descripcion ?: ""
@@ -104,6 +105,25 @@ fun Application.configureRouting() {
                     call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
                 }
             }
+            // 2. ESTA ES LA QUE NECESITAMOS PARA EL SALDO (GET)
+            get("/movimientos/usuario/{id}") {
+                val idParam = call.parameters["id"]?.toIntOrNull()
+
+                if (idParam == null) {
+                    call.respond(HttpStatusCode.BadRequest, "ID de usuario no válido")
+                    return@get
+                }
+
+                try {
+                    // Llamamos a la función que pusimos en verde en DatabaseFactory
+                    val lista = DatabaseFactory.obtenerMovimientosPorUsuario(idParam)
+                    call.respond(lista)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
+                }
+            }
+
+
         }
     }
 }

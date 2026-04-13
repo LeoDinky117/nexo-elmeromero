@@ -107,7 +107,7 @@ fun AddMovimientoScreen(navController: NavController,
                             .width(IntrinsicSize.Min)
                             .padding(start = 4.dp),
                         decorationBox = { innerTextField ->
-                            if(movimientosVM.esIngresoInput){
+                            if(movimientosVM.montoInput.isEmpty()){
                                 Text("0", color = Color.DarkGray,
                                     fontSize = 48.sp,
                                     fontWeight = FontWeight.ExtraBold)
@@ -149,7 +149,13 @@ fun AddMovimientoScreen(navController: NavController,
                 }
                 // Botón Gasto (Oscuro)
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight()
+                    modifier = Modifier.weight(1f).fillMaxHeight().background(
+                        if (!movimientosVM.esIngresoInput) degradadoRosa
+                        else Brush.linearGradient(
+                            listOf(Color.Transparent, Color.Transparent)
+                        ),
+                        RoundedCornerShape(14.dp)
+                    )
                         .clickable { movimientosVM.onEsIngresoChange(false)},
                     contentAlignment = Alignment.Center
                 ) {
@@ -277,9 +283,12 @@ fun AddMovimientoScreen(navController: NavController,
             Button(
                 onClick = {
                     movimientosVM.registrarMovimiento {
-                        navController.popBackStack()
+                        navController.navigate(Routes.SUCCESS){
+                            popUpTo(Routes.ADD_MOVIMIENTO){inclusive = true}
+                        }
+
                     }
-                    navController.navigate(Routes.SUCCESS) },
+                          },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(65.dp)

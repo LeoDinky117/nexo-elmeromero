@@ -17,5 +17,7 @@ data class Movimiento(
     @SerialName("Fecha")
     val fecha: String,
     @SerialName("Descripcion")
-    val descripcion: String?
+    val descripcion: String?,
+    @SerialName("Tipo")
+    val tipo: String
 )

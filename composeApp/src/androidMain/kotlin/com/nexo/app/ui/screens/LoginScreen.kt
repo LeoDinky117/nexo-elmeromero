@@ -32,6 +32,7 @@ import com.nexo.app.navigation.Routes
 //import androidx.navigation.compose.rememberNavController
 import com.nexo.app.ui.components.InputField
 import com.nexo.app.ui.viewModel.LoginViewModel
+import com.nexo.app.ui.viewModel.MovimientosViewModel
 import org.jetbrains.compose.resources.painterResource
 import nexo.composeapp.generated.resources.Res
 import nexo.composeapp.generated.resources.logo_nexo
@@ -42,6 +43,7 @@ fun LoginScreen(
     navController: NavController,
     onIrARegistro: () -> Unit,
     sessionManager: SessionManager,
+    movimientosVM: MovimientosViewModel
     //viewModel: LoginViewModel = viewModel()
 
 ) {
@@ -61,6 +63,8 @@ fun LoginScreen(
     LaunchedEffect(loginExitoso){
         println("DEBUG: LaunchedEffect disparado. Valor de loginExitoso: $loginExitoso")
         if (loginExitoso){ //Verificación explíc
+            movimientosVM.cargarDatosDelServidor()
+
             // ta al loginExitoso
             Toast.makeText(context, "¡Bienvenido a tu mundo financiero!", Toast.LENGTH_LONG).show()
             println("DEBUG: Intentando navegar a home...")

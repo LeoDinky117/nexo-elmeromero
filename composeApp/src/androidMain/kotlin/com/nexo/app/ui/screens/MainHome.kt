@@ -35,6 +35,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.nexo.app.navigation.BottomBarItem
@@ -64,12 +66,16 @@ import nexo.composeapp.generated.resources.icon_trabajo
 import nexo.composeapp.generated.resources.icon_transporte
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
+import kotlin.math.abs
 
 
 @Composable
 fun MainHome(navController: NavController,
              movimientosVM : MovimientosViewModel
 ) {
+    LaunchedEffect(Unit){
+        movimientosVM.cargarDatosDelServidor()
+    }
 
     val colorFondo = Color(0xFF0B1019)
     val degradadoRosa = Brush.horizontalGradient(listOf(Color(0xFFC837AB), Color(0xFFFF508E)))
@@ -156,7 +162,7 @@ fun MainHome(navController: NavController,
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Saldo total", color = Color.LightGray, fontSize = 16.sp)
+                Text("Saldo", color = Color.LightGray, fontSize = 16.sp)
                 Text(
                     "$${movimientosVM.saldoTotal}",
                     color = Color.White,
@@ -171,11 +177,13 @@ fun MainHome(navController: NavController,
 
             Text("Últimos movimientos", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
-             val ultimosCinco = movimientosVM.listaDeMovimientos.reversed().take(3)
+             val ultimosCinco = movimientosVM.listaDeMovimientos.reversed().take(5)
 
             ultimosCinco.forEach { movimiento ->
                 val esGasto = movimiento.idCategoria !=1
                 val simbolo = if(esGasto) "-$" else "+$"
+                //le agregue la variable para quitarle el signo "-", mostraba -$-200
+                val montoSinSigno = abs(movimiento.monto)
                 val colorMonto = if (esGasto) Color(0xFFFF508E) else Color(0xFF4CAF50)
 
                 val nombreCategoria = when(movimiento.idCategoria) {
@@ -189,7 +197,7 @@ fun MainHome(navController: NavController,
                 ItemMovimiento(
                     titulo = movimiento.descripcion ?: "Gasto",
                     sub = nombreCategoria,
-                    monto = "${simbolo}${movimiento.monto}",
+                    monto = "${simbolo}${montoSinSigno}",
                     colorMonto = colorMonto,
                     icono = when(movimiento.idCategoria) {
                         1 -> Res.drawable.icon_trabajo

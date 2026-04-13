@@ -7,6 +7,7 @@ plugins {
     kotlin("jvm") version "2.3.0"
     id("io.ktor.plugin") version "3.4.1"
     id("org.jetbrains.kotlin.plugin.serialization") version "2.3.0"
+
 }
 
 group = "com.example"
@@ -37,7 +38,7 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-java-time:${exposed_version}")
     implementation("org.jetbrains.exposed:exposed-dao:${exposed_version}")
 
-    implementation("com.h2database:h2:$h2_version")
+    //implementation("com.h2database:h2:$h2_version")
     implementation("io.ktor:ktor-server-auth")
     implementation("io.ktor:ktor-server-netty")
     implementation("ch.qos.logback:logback-classic:$logback_version")
@@ -46,7 +47,9 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 
     //Driver para SQL Server (Para conectar con DBeaver)
-    implementation("com.microsoft.sqlserver:mssql-jdbc:12.2.0.jre11")
+    implementation("com.microsoft.sqlserver:mssql-jdbc:13.2.1.jre11")
     //HikariCp para que DataBaseFactory no marque error
     implementation("com.zaxxer:HikariCP:5.0.1")
+
+
 }

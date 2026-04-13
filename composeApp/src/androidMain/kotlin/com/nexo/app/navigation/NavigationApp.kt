@@ -42,7 +42,8 @@ fun AppNavigation(sessionManager: SessionManager) {
                 onIrARegistro = {
                     navController.navigate(Routes.REGISTRO)
                 },
-                sessionManager = sessionManager
+                sessionManager = sessionManager,
+                movimientosVM = movimientosVM
             )
         }
         //Se dirige aquí en el caso de que el usuario no tenga una cuenta creada
