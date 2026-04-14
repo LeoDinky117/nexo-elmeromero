@@ -1,6 +1,5 @@
 package com.nexo.app.navigation
 
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -12,18 +11,41 @@ import com.nexo.app.ui.screens.GastosScreen
 import com.nexo.app.ui.screens.HomeScreen
 import com.nexo.app.ui.screens.LoginScreen
 import com.nexo.app.ui.screens.MainHome
+import com.nexo.app.ui.screens.MetasScreen
+import com.nexo.app.ui.screens.PerfilScreen
 import com.nexo.app.ui.screens.RegistroScreen
 import com.nexo.app.ui.screens.SuccessScreen
 import com.nexo.app.ui.viewModel.MovimientosViewModel
+import com.nexo.app.viewmodel.MetasViewModel
+import com.nexo.app.ui.viewModel.PerfilViewModel
 
 @Composable
 fun AppNavigation(sessionManager: SessionManager) {
     val navController = rememberNavController()
 
+    // 1. ViewModel de Movimientos con SessionManager
     val  movimientosVM : MovimientosViewModel = viewModel(
         factory = object : ViewModelProvider.Factory{
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 return MovimientosViewModel(sessionManager) as T
+            }
+        }
+    )
+
+    // 2. ViewModel de Perfil con SessionManager
+    val perfilVM: PerfilViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return PerfilViewModel(sessionManager) as T
+            }
+        }
+    )
+
+    // 3. ViewModel de Metas con SessionManager
+    val metasVM: MetasViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return MetasViewModel(sessionManager) as T
             }
         }
     )
@@ -81,13 +103,14 @@ fun AppNavigation(sessionManager: SessionManager) {
         }
 
         composable(Routes.METAS){
-            Text("Pantalla de metas")//paq no tuene //terminar de copy and paste
+            MetasScreen(viewModel = metasVM)
 
         }
 
 
         composable(Routes.PERFIL){
-            Text("Pantalla de perfil")
+
+            PerfilScreen(perfilVM)
 
         }
 

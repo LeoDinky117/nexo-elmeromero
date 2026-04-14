@@ -79,7 +79,7 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
         }
         viewModelScope.launch(Dispatchers.IO) {
             _cargando.value = true
-            println("DEBUG: [PASO 2] Lanzando petición a: ${ApiConfig.MOVIMIENTOS_URL}/usuario:$userIdReal  ")
+            println("DEBUG: [PASO 2] Lanzando petición a: ${ApiConfig.MOVIMIENTOS_URL}/$userIdReal  ")
             try {
                 // 1. Llamada para obtener movimientos de este usuario específico
                 // Ajusta la URL según tu API, ej: ApiConfig.MOVIMIENTOS_URL + "/$userIdReal"

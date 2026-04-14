@@ -3,6 +3,7 @@ package db
 
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.date
+import org.jetbrains.exposed.sql.javatime.datetime
 
 //import org.jetbrains.exposed.sql.javatime.date
 
@@ -14,6 +15,8 @@ object Usuarios : Table("Usuarios") {
     val edad = integer("Edad")
     val correo = varchar("Correo", 100).uniqueIndex()
     val password = varchar("Contrasena", 100)
+    val puntos = integer("Puntos")
+    val fechaRegistro = datetime("FechaRegistro")
     //val edad1 = integer("Edad").nullable()
 
     // El error 'primaryKey overrides nothing' se quita usando override val

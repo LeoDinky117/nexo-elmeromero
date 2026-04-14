@@ -15,8 +15,6 @@ import db.Usuarios // Asegúrate de que este sea el nombre de tu objeto Table
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.*
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import java.time.LocalDate
 
 fun Application.configureRouting() {
     routing {
@@ -91,7 +89,7 @@ fun Application.configureRouting() {
                     // 2. Lo insertamos en SQL Server usando nuestra DatabaseFactory
                     DatabaseFactory.dbQuery {
                         Movimientos.insert {
-                            it[idUsuario] = datosRecibidos.idUsuario.toInt()
+                            it[idUsuario] = datosRecibidos.idUsuario
                             it[idCategoria] = datosRecibidos.idCategoria
                             it[monto] = datosRecibidos.monto.toBigDecimal()
                             it[tipo] = datosRecibidos.tipo
@@ -123,7 +121,76 @@ fun Application.configureRouting() {
                 }
             }
 
+            get("/metas/usuario/{id}") {
+                val idParam = call.parameters["id"]?.toIntOrNull()
+                if (idParam == null) {
+                    call.respond(HttpStatusCode.BadRequest, "ID no válido")
+                    return@get
+                }
 
-        }
+                try {
+                    // Ejecutamos una consulta directa a la vista que creamos en SQL
+                    val metas = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                        val query = "SELECT * FROM Vista_ProgresoMetas WHERE IdUsuario = $idParam"
+                        val lista = mutableListOf<com.example.com.nexo.app.model.MetaAhorro>()
+
+                        exec(query) { rs ->
+                            while (rs.next()) {
+                                lista.add(com.example.com.nexo.app.model.MetaAhorro(
+                                    idUsuario = rs.getInt("IdUsuario"),
+                                    nombreMeta = rs.getString("NombreMeta"),
+                                    montoObjetivo = rs.getDouble("MontoObjetivo"),
+                                    totalAhorrado = rs.getDouble("TotalAhorrado"),
+                                    fechaLimite = "",
+                                    activa = true
+                                ))
+                            }
+                        }
+                        lista
+                    }
+                    call.respond(metas)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
+                }
+            }
+
+            get("/perfil/usuario/{id}") {
+                val idParam = call.parameters["id"]?.toIntOrNull()
+                if (idParam == null) {
+                    call.respond(HttpStatusCode.BadRequest, "ID no válido")
+                    return@get
+                }
+
+                try {
+                    val perfil = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                        // Usamos una consulta que traiga los puntos y el nombre del objeto Usuarios
+                        Usuarios.select(Usuarios.id, Usuarios.nombre, Usuarios.correo, Usuarios.puntos, Usuarios.edad)
+                            .where { Usuarios.id eq idParam }
+                            .map {
+                                // Aquí mapeas a tu PerfilUsuario model
+                                com.example.com.nexo.app.model.PerfilUsuario(
+                                    idUsuario = it[Usuarios.id],
+                                    nombre = it[Usuarios.nombre],
+                                    edad = it[Usuarios.edad],
+                                    correo = it[Usuarios.correo],
+                                    fechaRegistro = "",
+                                    puntos = it[Usuarios.puntos]
+                                    // balanceTotal se puede calcular o traer de la vista
+                                )
+                            }.singleOrNull()
+                    }
+
+                    if (perfil != null) {
+                        call.respond(perfil)
+                    } else {
+                        call.respond(HttpStatusCode.NotFound, "Usuario no encontrado")
+                    }
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
+                }
+            }
+
+
+        } //Aqui termina el Routing jiji
     }
 }
