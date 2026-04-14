@@ -35,3 +35,23 @@ object Movimientos : Table("Movimientos") {
 
     override val primaryKey = PrimaryKey(id)
 }
+
+object ProgresoMetas : Table("ProgresoMetas") {
+    val idProgreso = integer("IdProgreso").autoIncrement()
+    val idMeta = integer("IdMeta") references MetasAhorro.idMeta
+    val idUsuario = integer("IdUsuario") references Usuarios.id // <--- AGREGA ESTO
+    val montoAhorrado = decimal("MontoAhorrado", 10, 2)
+    val fechaRegistro = datetime("FechaRegistro")
+
+    override val primaryKey = PrimaryKey(idProgreso)
+}
+// Esta es la tabla principal de metas
+object MetasAhorro : Table("MetasAhorro") {
+    val idMeta = integer("IdMeta").autoIncrement()
+    val idUsuario = integer("IdUsuario").references(Usuarios.id)
+    val nombreMeta = varchar("NombreMeta", 100)
+    val montoObjetivo = decimal("MontoObjetivo", 10, 2)
+    val fechaCreacion = datetime("FechaCreacion")
+
+    override val primaryKey = PrimaryKey(idMeta)
+}
