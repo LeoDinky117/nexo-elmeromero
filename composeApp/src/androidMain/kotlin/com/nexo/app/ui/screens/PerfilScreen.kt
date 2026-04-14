@@ -19,10 +19,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.nexo.app.ui.viewModel.PerfilViewModel
+import androidx.compose.material3.Scaffold
 
 @Composable
-fun PerfilScreen(
+fun PerfilScreen( navController: NavController,
     viewModel: PerfilViewModel = viewModel()
 ) {
     val perfil by viewModel.perfil.collectAsState()
@@ -41,38 +43,45 @@ fun PerfilScreen(
     val fondo = Brush.verticalGradient(
         listOf(Color(0xFF0D1B2A), Color(0xFF081427), Color(0xFF050C1A))
     )
+    Scaffold(
+        bottomBar = { MyBottomBar(navController) }, //barra navegable
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(fondo)
-            .padding(24.dp)
-    ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Mi perfil", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(24.dp))
+        ) { paddingValues ->
 
-        if (cargando) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFFFFA726))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(fondo)
+                .padding(paddingValues)
+                .padding(24.dp)
+        ) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("Mi perfil", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (cargando) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFFFFA726))
+                }
+            } else if (perfil != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
+                        .padding(20.dp)
+                ) {
+                    ItemPerfil("Nombre", perfil!!.nombre)
+                    ItemPerfil("Correo", perfil!!.correo)
+                    ItemPerfil("Edad", perfil!!.edad.toString())
+                    ItemPerfil("Puntos", perfil!!.puntos.toString())
+                    ItemPerfil("Fecha de registro", perfil!!.fechaRegistro)
+                }
+            } else {
+                Text("No hay datos del perfil", color = Color.White.copy(alpha = 0.75f))
             }
-        } else if (perfil != null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
-                    .padding(20.dp)
-            ) {
-                ItemPerfil("Nombre", perfil!!.nombre)
-                ItemPerfil("Correo", perfil!!.correo)
-                ItemPerfil("Edad", perfil!!.edad.toString())
-                ItemPerfil("Puntos", perfil!!.puntos.toString())
-                ItemPerfil("Fecha de registro", perfil!!.fechaRegistro)
-            }
-        } else {
-            Text("No hay datos del perfil", color = Color.White.copy(alpha = 0.75f))
         }
     }
+
 }
 
 @Composable
