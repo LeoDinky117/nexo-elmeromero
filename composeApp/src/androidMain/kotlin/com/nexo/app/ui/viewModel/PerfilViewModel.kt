@@ -45,13 +45,13 @@ class PerfilViewModel(private val sessionManager: SessionManager) : ViewModel() 
 
             _cargando.value = true
             println("DEBUG ANDROID: Iniciando carga para ID: $idUsuario")
-            println("DEBUG ANDROID: URL destino: ${ApiConfig.PERFIL_URL}/$idUsuario")
+            println("DEBUG ANDROID: URL destino: ${ApiConfig.PERFIL_URL}/usuario/$idUsuario")
 
             try {
                 // El delay para dar tiempo a la conexión
                 delay(500)
 
-                _perfil.value = client.get("${ApiConfig.PERFIL_URL}/$idUsuario").body()
+                _perfil.value = client.get("${ApiConfig.PERFIL_URL}/usuario/$idUsuario").body()
                 println("DEBUG ANDROID: Respuesta exitosa: ${_perfil.value?.nombre}")
             } catch (e: Exception) {
                 _mensajeUI.value = "No se pudo cargar el perfil"

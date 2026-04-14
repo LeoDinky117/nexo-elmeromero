@@ -23,7 +23,7 @@ import com.nexo.app.ui.viewModel.PerfilViewModel
 
 @Composable
 fun PerfilScreen(
-    viewModel: PerfilViewModel = viewModel()
+    viewModel: PerfilViewModel
 ) {
     val perfil by viewModel.perfil.collectAsState()
     val cargando by viewModel.cargando.collectAsState()

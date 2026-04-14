@@ -31,7 +31,7 @@ import com.nexo.app.viewmodel.MetasViewModel
 
 @Composable
 fun MetasScreen(
-    viewModel: MetasViewModel = viewModel()
+    viewModel: MetasViewModel
 ) {
     val metas by viewModel.metas.collectAsState()
     val cargando by viewModel.cargando.collectAsState()

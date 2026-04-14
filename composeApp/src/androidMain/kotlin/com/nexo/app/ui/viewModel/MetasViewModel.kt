@@ -65,7 +65,7 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
         viewModelScope.launch {
             _cargando.value = true
             try {
-                _metas.value = client.get("${ApiConfig.METAS_URL}/$idUsuario").body()
+                _metas.value = client.get("${ApiConfig.METAS_URL}/usuario/$idUsuario").body()
             } catch (e: Exception) {
                 _mensajeUI.value = "No se pudieron cargar las metas"
                 println("Error al cargar metas: ${e.message}")
