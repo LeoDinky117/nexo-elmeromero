@@ -7,7 +7,7 @@ package com.nexo.app.util
      private const val ESCUELA_IP="http://10.10.207.56:8080"
 
      // VARIABLE GLOBAL DE LA IP/API // Se asigna aqui la IP
-     const val BASE_URL =ESCUELA_IP
+     const val BASE_URL =CASA_IP
 
      //Endpoints automáticos
      const val LOGIN_URL = "$BASE_URL/login"
