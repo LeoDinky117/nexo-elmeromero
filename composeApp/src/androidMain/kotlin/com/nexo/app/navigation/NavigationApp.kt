@@ -103,14 +103,16 @@ fun AppNavigation(sessionManager: SessionManager) {
         }
 
         composable(Routes.METAS){
-            MetasScreen(viewModel = metasVM)
+            MetasScreen(navController,  viewModel = metasVM)
 
         }
 
 
         composable(Routes.PERFIL){
 
-            PerfilScreen(perfilVM)
+            PerfilScreen(navController,
+                perfilVM,
+            )
 
         }
 
