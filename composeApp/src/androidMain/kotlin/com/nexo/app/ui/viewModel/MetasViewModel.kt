@@ -51,8 +51,35 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
     val mensajeUI: StateFlow<String?> = _mensajeUI
 
     fun onNombreMetaChange(value: String) { nombreMeta = value }
-    fun onMontoObjetivoChange(value: String) { montoObjetivo = value.filter { it.isDigit() || it == '.' } }
-    fun onFechaLimiteChange(value: String) { fechaLimite = value }
+    // Conserva los dígitos y permite un solo punto decimal con hasta dos decimales.
+    fun onMontoObjetivoChange(value: String) {
+        val numero = value.filter { it.isDigit() || it == '.' }
+        val punto = numero.indexOf('.')
+
+        montoObjetivo = if (punto == -1) {
+            numero
+        } else {
+            val parteEntera = numero.substring(0, punto)
+            val parteDecimal = numero.substring(punto + 1)
+                .replace(".", "")
+                .take(2)
+
+            "$parteEntera.$parteDecimal"
+        }
+    }
+
+    // Acepta dígitos y agrega automáticamente los guiones del formato AAAA-MM-DD.
+    fun onFechaLimiteChange(value: String) {
+        val digitos = value.filter { it.isDigit() }.take(8)
+
+        fechaLimite = when {
+            digitos.length <= 4 -> digitos
+            digitos.length <= 6 ->
+                "${digitos.substring(0, 4)}-${digitos.substring(4)}"
+            else ->
+                "${digitos.substring(0, 4)}-${digitos.substring(4, 6)}-${digitos.substring(6)}"
+        }
+    }
     fun mensajeMostrado() { _mensajeUI.value = null }
 
     private fun limpiarFormulario() {
@@ -76,6 +103,12 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
     }
 
     fun registrarMeta() {
+        println("---- DEBUG METAS: clic en Guardar meta ----")
+        println(
+            "DEBUG METAS: userId:$userIdReal," +
+            "nombre='${nombreMeta.trim()}'," +
+            "monto='$montoObjetivo', fecha='${fechaLimite.trim()}'"
+        )
         if (userIdReal == 0){
             _mensajeUI.value = "Error de sesión"
             return
@@ -99,26 +132,36 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
                     nombreMeta = nombreMeta.trim(),
                     montoObjetivo = monto,
                     fechaLimite = fechaLimite.trim(),
-                    activa = true
+                    activa = true,
+                    totalAhorrado = 0.0
                 )
+                println("DEBUG METAS: validación correcta; enviando POST a ${ApiConfig.METAS_URL}")
+                println("DEBUG METAS: cuerpo a enviar=$nuevaMeta")
+
+
 
                 val response = client.post(ApiConfig.METAS_URL) {
                     contentType(ContentType.Application.Json)
                     setBody(nuevaMeta)
                 }
+                println("DEBUG METAS: respuesta HTTP ${response.status}")
 
                 if (response.status == HttpStatusCode.Created) {
+                    println("DEBUG METAS: guardado confirmado por el servidor")
                     _mensajeUI.value = "Meta registrada con éxito"
                     limpiarFormulario()
                     cargarMetas(userIdReal)
                 } else {
+                    println("DEBUG METAS: el servidor rechazó el guardado; estado=${response.status}")
                     _mensajeUI.value = "Error al registrar la meta"
                 }
             } catch (e: Exception) {
+                println("DEBUG METAS: excepción al registrar — ${e::class.simpleName}: ${e.message}")
                 _mensajeUI.value = "Error de red al registrar meta"
                 println("Error registrarMeta: ${e.message}")
             } finally {
                 _cargando.value = false
+                println("DEBUG METAS: terminó el intento de guardado")
             }
         }
     }

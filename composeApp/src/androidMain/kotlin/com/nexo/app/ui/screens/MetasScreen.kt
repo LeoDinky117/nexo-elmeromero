@@ -24,9 +24,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
+//import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.nexo.app.ui.components.InputField
 import com.nexo.app.viewmodel.MetasViewModel
@@ -77,9 +78,9 @@ fun MetasScreen(
 
             InputField(viewModel.nombreMeta, "Nombre de la meta") { viewModel.onNombreMetaChange(it) }
             Spacer(modifier = Modifier.height(14.dp))
-            InputField(viewModel.montoObjetivo, "Monto objetivo") { viewModel.onMontoObjetivoChange(it) }
+            InputField(viewModel.montoObjetivo, "Monto objetivo", keyboardType = KeyboardType.Decimal, leadingText = "$") { viewModel.onMontoObjetivoChange(it) }
             Spacer(modifier = Modifier.height(14.dp))
-            InputField(viewModel.fechaLimite, "Fecha límite (YYYY-MM-DD)") { viewModel.onFechaLimiteChange(it) }
+            InputField(viewModel.fechaLimite, "Fecha límite (YYYY-MM-DD)", keyboardType = KeyboardType.Number, formatDate = true) { viewModel.onFechaLimiteChange(it) }
             Spacer(modifier = Modifier.height(20.dp))
 
             Box(

@@ -1,10 +1,15 @@
 package com.example
 
+import com.example.com.nexo.app.model.MetaAhorroResponse
 import com.example.com.nexo.app.model.Usuario
 import com.example.com.nexo.app.model.UsuarioLogin
 import com.example.com.nexo.app.model.Movimiento
+
 import db.DatabaseFactory
 import db.Movimientos
+import db.MetasAhorro
+import db.ProgresoMetas
+
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
@@ -103,6 +108,7 @@ fun Application.configureRouting() {
                     call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
                 }
             }
+
             // 2. ESTA ES LA QUE NECESITAMOS PARA EL SALDO (GET)
             get("/movimientos/usuario/{id}") {
                 val idParam = call.parameters["id"]?.toIntOrNull()
@@ -121,38 +127,101 @@ fun Application.configureRouting() {
                 }
             }
 
+            //POST PARA MetasAhorro
+            // Crea una meta. SQL Server asigna IdMeta, FechaCreacion y Activa usa su default.
+            post("/metas") {
+                println("DEBUG POST /metas: solicitud recibida")
+
+                try {
+                    val solicitud = call.receive<com.example.com.nexo.app.model.MetaAhorro>()
+                    println("DEBUG POST /metas: usuario=${solicitud.idUsuario}, meta=${solicitud.nombreMeta}")
+
+                    newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                        MetasAhorro.insert {
+                            it[idUsuario] = solicitud.idUsuario
+                            it[nombreMeta] = solicitud.nombreMeta
+                            it[montoObjetivo] = solicitud.montoObjetivo.toBigDecimal()
+                            it[fechaLimite] = java.time.LocalDate.parse(solicitud.fechaLimite)
+                            // No se insertan IdMeta, FechaCreacion ni Activa:
+                            // SQL Server genera el ID y aplica los valores predeterminados.
+                        }
+                    }
+
+                    println("DEBUG POST /metas: respuesta 201 Created")
+                    call.respond(HttpStatusCode.Created, "Meta creada correctamente")
+                } catch (e: Exception) {
+                    println("ERROR POST /metas: ${e.message}")
+                    e.printStackTrace()
+                    println("DEBUG POST /metas: respuesta 500 Internal Server Error")
+                    call.respond(HttpStatusCode.InternalServerError, "No se pudo crear la meta: ${e.message}")
+                }
+            }
+
+// Consulta las metas y suma sus aportaciones para incluir TotalAhorrado.
             get("/metas/usuario/{id}") {
-                val idParam = call.parameters["id"]?.toIntOrNull()
-                if (idParam == null) {
-                    call.respond(HttpStatusCode.BadRequest, "ID no válido")
+                println("DEBUG GET metas: solicitud recibida")
+
+                val idUsuario = call.parameters["id"]?.toIntOrNull()
+                if (idUsuario == null) {
+                    println("DEBUG GET metas: ID inválido; respuesta 400 Bad Request")
+                    call.respond(HttpStatusCode.BadRequest, "ID de usuario no válido")
                     return@get
                 }
 
                 try {
-                    // Ejecutamos una consulta directa a la vista que creamos en SQL
-                    val metas = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
-                        val query = "SELECT * FROM Vista_ProgresoMetas WHERE IdUsuario = $idParam"
-                        val lista = mutableListOf<com.example.com.nexo.app.model.MetaAhorro>()
+                    // El tipo explícito ayuda a Kotlin a inferir el resultado de la transacción.
+                    val metas: List<MetaAhorroResponse> =
+                        newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                            // Obtiene las metas del usuario con su fecha límite y estado actual.
+                            val metasUsuario: List<MetaAhorroResponse> = MetasAhorro
+                                .selectAll()
+                                .where { MetasAhorro.idUsuario eq idUsuario }
+                                .map { fila ->
+                                    MetaAhorroResponse(
+                                        idMeta = fila[MetasAhorro.idMeta],
+                                        idUsuario = fila[MetasAhorro.idUsuario],
+                                        nombreMeta = fila[MetasAhorro.nombreMeta],
+                                        montoObjetivo = fila[MetasAhorro.montoObjetivo].toDouble(),
+                                        fechaLimite = fila[MetasAhorro.fechaLimite].toString(),
+                                        activa = fila[MetasAhorro.activa],
+                                        totalAhorrado = 0.0
+                                    )
+                                }
 
-                        exec(query) { rs ->
-                            while (rs.next()) {
-                                lista.add(com.example.com.nexo.app.model.MetaAhorro(
-                                    idUsuario = rs.getInt("IdUsuario"),
-                                    nombreMeta = rs.getString("NombreMeta"),
-                                    montoObjetivo = rs.getDouble("MontoObjetivo"),
-                                    totalAhorrado = rs.getDouble("TotalAhorrado"),
-                                    fechaLimite = "",
-                                    activa = true
-                                ))
+                            // Agrupa las aportaciones por meta y suma sus montos.
+                            val totalesPorMeta: Map<Int, Double> = ProgresoMetas
+                                .selectAll()
+                                .where { ProgresoMetas.idUsuario eq idUsuario }
+                                .map { fila ->
+                                    fila[ProgresoMetas.idMeta] to
+                                            fila[ProgresoMetas.montoAhorrado].toDouble()
+                                }
+                                .groupBy({ aporte -> aporte.first }, { aporte -> aporte.second })
+                                .mapValues { (_, aportaciones) -> aportaciones.sum() }
+
+                            // Si no hay aportaciones para una meta, su total queda en 0.0.
+                            metasUsuario.map { meta ->
+                                meta.copy(
+                                    totalAhorrado = totalesPorMeta[meta.idMeta] ?: 0.0
+                                )
                             }
                         }
-                        lista
-                    }
-                    call.respond(metas)
+
+                    println("DEBUG GET metas: ${metas.size} meta(s); respuesta 200 OK")
+                    call.respond(HttpStatusCode.OK, metas)
                 } catch (e: Exception) {
-                    call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
+                    println("ERROR GET metas: ${e.message}")
+                    e.printStackTrace()
+                    println("DEBUG GET metas: respuesta 500 Internal Server Error")
+                    call.respond(
+                        HttpStatusCode.InternalServerError,
+                        "No se pudieron cargar las metas: ${e.message}"
+                    )
                 }
             }
+
+
+
 
             get("/perfil/usuario/{id}") {
                 val idParam = call.parameters["id"]?.toIntOrNull()
@@ -164,7 +233,7 @@ fun Application.configureRouting() {
                 try {
                     val perfil = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
                         // Usamos una consulta que traiga los puntos y el nombre del objeto Usuarios
-                        Usuarios.select(Usuarios.id, Usuarios.nombre, Usuarios.correo, Usuarios.puntos, Usuarios.edad)
+                        Usuarios.select(Usuarios.id, Usuarios.nombre, Usuarios.correo, Usuarios.puntos, Usuarios.edad, Usuarios.fechaRegistro)
                             .where { Usuarios.id eq idParam }
                             .map {
                                 // Aquí mapeas a tu PerfilUsuario model
@@ -173,7 +242,9 @@ fun Application.configureRouting() {
                                     nombre = it[Usuarios.nombre],
                                     edad = it[Usuarios.edad],
                                     correo = it[Usuarios.correo],
-                                    fechaRegistro = "",
+                                    fechaRegistro = it[Usuarios.fechaRegistro]
+                                        ?.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
+                                        ?: "Sin fecha registrada",
                                     puntos = it[Usuarios.puntos]
                                     // balanceTotal se puede calcular o traer de la vista
                                 )

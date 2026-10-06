@@ -1,12 +1,12 @@
-package com.nexo.app.model
+package com.example.com.nexo.app.model
 
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.util.Date
+import kotlinx.serialization.SerialName
 
 @Serializable
-data class MetaAhorro(
-    val IdMeta: Int = 0,
+data class MetaAhorroResponse (
+    @SerialName("IdMeta")
+    val idMeta: Int,
     @SerialName("IdUsuario")
     val idUsuario: Int,
     @SerialName("NombreMeta")
@@ -16,7 +16,7 @@ data class MetaAhorro(
     @SerialName("FechaLimite")
     val fechaLimite: String,
     @SerialName("Activa")
-    val activa: Boolean = true,
+    val activa: Boolean,
     @SerialName("TotalAhorrado")
     val totalAhorrado: Double
 )

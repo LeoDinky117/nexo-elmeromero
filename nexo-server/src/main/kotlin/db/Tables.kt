@@ -1,12 +1,11 @@
 package db
 
-
 import org.jetbrains.exposed.sql.Table
 import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.datetime
+import org.jetbrains.exposed.sql.javatime.CurrentDateTime
 
 //import org.jetbrains.exposed.sql.javatime.date
-
 // Tabla Usuarios
 object Usuarios : Table("Usuarios") {
     val id = integer("IdUsuario").autoIncrement()
@@ -36,22 +35,27 @@ object Movimientos : Table("Movimientos") {
     override val primaryKey = PrimaryKey(id)
 }
 
-object ProgresoMetas : Table("ProgresoMetas") {
-    val idProgreso = integer("IdProgreso").autoIncrement()
-    val idMeta = integer("IdMeta") references MetasAhorro.idMeta
-    val idUsuario = integer("IdUsuario") references Usuarios.id // <--- AGREGA ESTO
-    val montoAhorrado = decimal("MontoAhorrado", 10, 2)
-    val fechaRegistro = datetime("FechaRegistro")
-
-    override val primaryKey = PrimaryKey(idProgreso)
-}
-// Esta es la tabla principal de metas
+// Tabla principal de metas
 object MetasAhorro : Table("MetasAhorro") {
     val idMeta = integer("IdMeta").autoIncrement()
     val idUsuario = integer("IdUsuario").references(Usuarios.id)
-    val nombreMeta = varchar("NombreMeta", 100)
+    val nombreMeta = varchar("NombreMeta", 150)
     val montoObjetivo = decimal("MontoObjetivo", 10, 2)
+    val fechaLimite = date("FechaLimite")
+    val activa = bool("Activa").default(true)
     val fechaCreacion = datetime("FechaCreacion")
+        .defaultExpression(CurrentDateTime)
+    val fechaCumplimiento = datetime("FechaCumplimiento").nullable()
 
     override val primaryKey = PrimaryKey(idMeta)
+}
+
+object ProgresoMetas : Table("ProgresoMetas") {
+    val idProgreso = integer("IdProgreso").autoIncrement()
+    val idMeta = integer("IdMeta").references(MetasAhorro.idMeta)
+    val idUsuario = integer("IdUsuario").references(Usuarios.id)
+    val montoAhorrado = decimal("MontoAhorrado", 10, 2)
+    val fechaRegistro = date("FechaRegistro")
+
+    override val primaryKey = PrimaryKey(idProgreso)
 }

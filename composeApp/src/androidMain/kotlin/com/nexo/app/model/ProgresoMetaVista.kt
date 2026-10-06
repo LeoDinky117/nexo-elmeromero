@@ -10,5 +10,9 @@ data class ProgresoMetaVista(
     @SerialName("MontoObjetivo")
     val montoObjetivo: Double,
     @SerialName("TotalAhorrado")
-    val totalAhorrado: Double
+    val totalAhorrado: Double,
+    @SerialName("FechaLimite")
+    val fechaLimite: String,
+    @SerialName("Activa")
+    val activa: Boolean
 )

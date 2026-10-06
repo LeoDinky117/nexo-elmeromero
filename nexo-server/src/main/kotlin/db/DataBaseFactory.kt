@@ -1,7 +1,6 @@
 package db
 
 //Conexion a SQL Server (JDBC)
-
 import com.example.com.nexo.app.model.Movimiento
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
