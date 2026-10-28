@@ -1,5 +1,14 @@
 package com.nexo.app.ui.screens
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,6 +21,14 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -26,8 +43,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import androidx.core.content.ContextCompat
 import com.nexo.app.navigation.Routes
 import com.nexo.app.ui.viewModel.MovimientosViewModel
+import com.nexo.app.ui.LocalNexoPalette
 import nexo.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.painterResource
 
@@ -37,11 +56,103 @@ fun AddMovimientoScreen(navController: NavController,
                         movimientosVM: MovimientosViewModel
                          ) {
 
+    val context = LocalContext.current
+    LaunchedEffect(movimientosVM.esIngresoInput) {
+        movimientosVM.cargarCategorias(if (movimientosVM.esIngresoInput) "Ingreso" else "Gasto")
+    }
+    var vozEstado by remember { mutableStateOf("") }
+    var escuchando by remember { mutableStateOf(false) }
+    val viewModelActual by rememberUpdatedState(movimientosVM)
+    val reconocedor = remember(context) {
+        if (SpeechRecognizer.isRecognitionAvailable(context)) {
+            SpeechRecognizer.createSpeechRecognizer(context)
+        } else null
+    }
 
-    val colorFondo = Color(0xFF0B1019) // Azul muy oscuro de fondo
-    val colorContenedor = Color(0xFF161C28) // Color de los bloques (Selector, Categoría, TextField)
-    val degradadoRosa = Brush.horizontalGradient(listOf(Color(0xFFC837AB), Color(0xFFFF508E)))
-    val colorMoradoNexo = Color(0xFF8E24AA) // Para bordes y texto seleccionado
+    val iniciarDictado: () -> Unit = {
+        if (reconocedor == null) {
+            vozEstado = "No hay un servicio de reconocimiento de voz disponible."
+        } else {
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-MX")
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-MX")
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                putExtra(RecognizerIntent.EXTRA_PROMPT, "Di el tipo, monto y concepto del movimiento")
+            }
+            try {
+                vozEstado = "Escuchando..."
+                escuchando = true
+                reconocedor.startListening(intent)
+            } catch (_: Exception) {
+                vozEstado = "No se pudo iniciar el reconocimiento. Intenta de nuevo."
+                escuchando = false
+            }
+        }
+    }
+
+    val permisoMicrofono = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { concedido ->
+        if (concedido) iniciarDictado()
+        else vozEstado = "Activa el permiso del micrófono para dictar el movimiento."
+    }
+
+    DisposableEffect(reconocedor) {
+        reconocedor?.setRecognitionListener(object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) { vozEstado = "Escuchando..." }
+            override fun onBeginningOfSpeech() { vozEstado = "Te estoy escuchando..." }
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() { vozEstado = "Procesando voz..." }
+            override fun onError(error: Int) {
+                escuchando = false
+                vozEstado = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No entendí lo que dijiste. Intenta otra vez."
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Falta el permiso del micrófono."
+                    SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "El servicio de voz necesita conexión o no respondió."
+                    else -> "Falló el reconocimiento de voz. Intenta otra vez."
+                }
+            }
+            override fun onResults(results: Bundle?) {
+                escuchando = false
+                val transcripcion = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                if (transcripcion.isNullOrBlank()) {
+                    vozEstado = "No se reconoció una frase. Intenta otra vez."
+                } else {
+                    val borradorAgregado = viewModelActual.aplicarComandoVoz(transcripcion)
+                    if (borradorAgregado) {
+                        navController.navigate(Routes.MAIN_HOME) {
+                            popUpTo(Routes.ADD_MOVIMIENTO) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    } else {
+                        vozEstado = "Dictado reconocido. Di el tipo, monto y concepto para crear un borrador; revisa los campos."
+                    }
+                }
+            }
+            override fun onPartialResults(partialResults: Bundle?) = Unit
+            override fun onEvent(eventType: Int, params: Bundle?) = Unit
+        })
+        onDispose { reconocedor?.destroy() }
+    }
+
+    val solicitarOVerificarMicrofono: () -> Unit = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            iniciarDictado()
+        } else {
+            permisoMicrofono.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+
+    val paleta = LocalNexoPalette.current
+    val colorFondo = paleta.background
+    val colorContenedor = paleta.surface
+    val degradadoRosa = Brush.horizontalGradient(listOf(paleta.accent, paleta.highlight))
+    val colorMoradoNexo = paleta.accent
 
     Column(
             modifier = Modifier
@@ -102,7 +213,7 @@ fun AddMovimientoScreen(navController: NavController,
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Number //teclado de num.
                         ),
-                        cursorBrush = SolidColor(Color(0xFFBE2EDD)),
+                        cursorBrush = SolidColor(paleta.accent),
                         modifier = Modifier
                             .width(IntrinsicSize.Min)
                             .padding(start = 4.dp),
@@ -172,19 +283,11 @@ fun AddMovimientoScreen(navController: NavController,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 8.dp))
 
-            // Definimos la lista de categorías con sus datos
-            val categorias = listOf(
-                Triple("Trabajo", Res.drawable.icon_trabajo, "Trabajo"), // (Nombre, Icono, Etiqueta)
-                Triple("Comida", Res.drawable.icon_comida, "Comida"),
-                Triple("Ocio", Res.drawable.icon_ocio, "Ocio"),
-                Triple("Trans.", Res.drawable.icon_transporte, "Trans.")
-            )
-
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(categorias) { cat ->
+                items(movimientosVM.categorias) { cat ->
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -193,31 +296,27 @@ fun AddMovimientoScreen(navController: NavController,
                             .background(colorContenedor, RoundedCornerShape(16.dp))
                             // Si está seleccionada, le ponemos el borde morado
                             .border(
-                                if (movimientosVM.categoriaSeleccionada == cat.first) 2.dp else 0.dp,
-                                if (movimientosVM.categoriaSeleccionada == cat.first) colorMoradoNexo else Color.Transparent,
+                                if (movimientosVM.categoriaSeleccionada == cat.nombre) 2.dp else 0.dp,
+                                if (movimientosVM.categoriaSeleccionada == cat.nombre) colorMoradoNexo else Color.Transparent,
                                 RoundedCornerShape(16.dp)
                             )
-                            .clickable { movimientosVM.onCategoriaChange(cat.first) }
+                            .clickable { movimientosVM.onCategoriaChange(cat) }
                             .padding(top = 16.dp)
                     ) {
-                        Image(
-                            painter = painterResource(cat.second),
-                            contentDescription = cat.first,
-                            modifier = Modifier.size(28.dp),
-                            // El icono brilla en blanco si se selecciona
-                            colorFilter = if (movimientosVM.categoriaSeleccionada == cat.first) null else ColorFilter.tint(Color.Gray)
-                        )
+                        Text(text = iconoCategoria(cat.nombre), fontSize = 24.sp)
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = cat.third,
-                            color = if (movimientosVM.categoriaSeleccionada == cat.first) colorMoradoNexo else Color.Gray,
+                            text = cat.nombre,
+                            color = if (movimientosVM.categoriaSeleccionada == cat.nombre) colorMoradoNexo else Color.Gray,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center
                         )
                     }
+
                 }
             }
+
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -240,8 +339,8 @@ fun AddMovimientoScreen(navController: NavController,
                 .height(60.dp),
             shape = RoundedCornerShape(18.dp),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFF161C28),
-                unfocusedContainerColor = Color(0xFF161C28),
+                focusedContainerColor = paleta.surface,
+                unfocusedContainerColor = paleta.surface,
                 focusedTextColor = Color.White,
                 unfocusedTextColor = Color.White,
                 focusedIndicatorColor = Color.Transparent,
@@ -264,6 +363,14 @@ fun AddMovimientoScreen(navController: NavController,
                 placeholder = { Text("Ej. Cena...", color = Color.DarkGray) },
                 leadingIcon = { Image(painter = painterResource(Res.drawable.icon_concepto),
                     contentDescription = null, modifier = Modifier.size(20.dp)) },
+                trailingIcon = {
+                    TextButton(
+                        onClick = solicitarOVerificarMicrofono,
+                        enabled = !escuchando
+                    ) {
+                        Text(if (escuchando) "Escuchando" else "🎙 Dictar", color = paleta.highlight, fontSize = 12.sp)
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 shape = RoundedCornerShape(18.dp),
                 colors = TextFieldDefaults.colors(
@@ -276,6 +383,14 @@ fun AddMovimientoScreen(navController: NavController,
                 ),
                 singleLine = true
             )
+            if (vozEstado.isNotBlank()) {
+                Text(
+                    text = vozEstado,
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 6.dp, start = 8.dp)
+                )
+            }
 
             // --- BOTÓN DE GUARDAR (Abajo, con degradado rosa completo) ---
 
@@ -308,3 +423,24 @@ fun AddMovimientoScreen(navController: NavController,
             }
         }
     }
+private fun iconoCategoria(nombre: String): String = when (nombre) {
+    "Trabajo" -> "💼"
+    "Comida" -> "🍽️"
+    "Ocio" -> "🎮"
+    "Trans." -> "🚗"
+    "Ventas" -> "🛍️"
+    "Freelance" -> "🧑‍💻"
+    "Inversiones" -> "📈"
+    "Regalo" -> "🎁"
+    "Otros ingresos" -> "💵"
+    "Hogar" -> "🏠"
+    "Servicios" -> "💡"
+    "Salud" -> "🩺"
+    "Educación" -> "📚"
+    "Compras" -> "🛒"
+    "Suscripciones" -> "📱"
+    "Deudas" -> "💳"
+    "Viajes" -> "✈️"
+    "Mascotas" -> "🐾"
+    else -> "📦"
+}

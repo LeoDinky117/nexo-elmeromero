@@ -4,11 +4,14 @@ import com.example.com.nexo.app.model.MetaAhorroResponse
 import com.example.com.nexo.app.model.Usuario
 import com.example.com.nexo.app.model.UsuarioLogin
 import com.example.com.nexo.app.model.Movimiento
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
 
 import db.DatabaseFactory
 import db.Movimientos
 import db.MetasAhorro
 import db.ProgresoMetas
+import db.CategoriasFinancieras
+import db.ActividadDiaria
 
 import io.ktor.http.*
 import io.ktor.server.application.*
@@ -58,16 +61,39 @@ fun Application.configureRouting() {
             try {
                 val loginReq = call.receive<UsuarioLogin>()
                 println("DEBUG: Intento de login para ${loginReq.correo}")
-                //Se ejecuta la búsqueda y sacamos solo el resultado (Si existe o no)
-                val existe = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
-                    //Ejecutamos si hay alguna fila que coincida
-                    Usuarios.selectAll().where {
+                val datosLogin = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                    val usuario = Usuarios.selectAll().where {
                         (Usuarios.correo eq loginReq.correo) and (Usuarios.password eq loginReq.password)
-                    }.map{it[Usuarios.id]}.singleOrNull() //Aqui se obtiene el ID del usuario o null si no existe
+                    }.singleOrNull() ?: return@newSuspendedTransaction null
+
+                    val usuarioId = usuario[Usuarios.id]
+                    val hoy = java.time.LocalDate.now()
+                    val fechas = ActividadDiaria.selectAll()
+                        .where { ActividadDiaria.idUsuario eq usuarioId }
+                        .map { it[ActividadDiaria.fecha] }
+                    if (hoy !in fechas) {
+                        ActividadDiaria.insert {
+                            it[idUsuario] = usuarioId
+                            it[fecha] = hoy
+                        }
+                    }
+                    val fechasActualizadas = (fechas + hoy).distinct().sortedDescending()
+                    var racha = 0
+                    var fechaEsperada = hoy
+                    for (fecha in fechasActualizadas) {
+                        if (fecha != fechaEsperada) break
+                        racha++
+                        fechaEsperada = fechaEsperada.minusDays(1)
+                    }
+                    Triple(usuarioId, racha, usuario[Usuarios.puntos])
                 }
-                if (existe != null){
-                    println("DEGUB: Login exitoso para ${loginReq.correo}, ID: $existe")
-                    call.respond(HttpStatusCode.OK, com.example.com.nexo.app.model.UsuarioResponse(idUsuario = existe))
+                if (datosLogin != null){
+                    println("DEBUG: Login exitoso para ${loginReq.correo}, ID: ${datosLogin.first}, racha=${datosLogin.second}")
+                    call.respond(HttpStatusCode.OK, com.example.com.nexo.app.model.UsuarioResponse(
+                        idUsuario = datosLogin.first,
+                        racha = datosLogin.second,
+                        puntos = datosLogin.third
+                    ))
                 }else{
                     println("DEGUB: Credenciales incorrectas")
                     call.respond(HttpStatusCode.Unauthorized, "Correo o Contraseña incorrectos")
@@ -85,6 +111,39 @@ fun Application.configureRouting() {
             call.respondText("Servidor Nexo funcionando!")
         }
 
+            post("/actividad/usuario/{id}/conexion") {
+                val idUsuario = call.parameters["id"]?.toIntOrNull()
+                if (idUsuario == null) {
+                    call.respond(HttpStatusCode.BadRequest, "ID de usuario no válido")
+                    return@post
+                }
+                try {
+                    val racha = DatabaseFactory.dbQuery {
+                        val hoy = java.time.LocalDate.now()
+                        val fechas = ActividadDiaria.selectAll()
+                            .where { ActividadDiaria.idUsuario eq idUsuario }
+                            .map { it[ActividadDiaria.fecha] }
+                        if (hoy !in fechas) {
+                            ActividadDiaria.insert {
+                                it[ActividadDiaria.idUsuario] = idUsuario
+                                it[ActividadDiaria.fecha] = hoy
+                            }
+                        }
+                        var cuenta = 0
+                        var fechaEsperada = hoy
+                        for (fecha in (fechas + hoy).distinct().sortedDescending()) {
+                            if (fecha != fechaEsperada) break
+                            cuenta++
+                            fechaEsperada = fechaEsperada.minusDays(1)
+                        }
+                        cuenta
+                    }
+                    call.respond(HttpStatusCode.OK, com.example.com.nexo.app.model.RachaResponse(racha))
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, "No se pudo actualizar la racha: ${e.message}")
+                }
+            }
+
         routing {
             post("/movimientos") {
                 try {
@@ -101,6 +160,9 @@ fun Application.configureRouting() {
                             // Convertimos el String de la App a LocalDate de Java para la DB
                             it[fecha] = java.time.LocalDate.parse(datosRecibidos.fecha)
                             it[descripcion] = datosRecibidos.descripcion ?: ""
+                        }
+                        Usuarios.update({ Usuarios.id eq datosRecibidos.idUsuario }) {
+                            it.update(puntos, puntos + 10)
                         }
                     }
                     call.respond(HttpStatusCode.Created, "Movimiento guardado!")
@@ -124,6 +186,27 @@ fun Application.configureRouting() {
                     call.respond(lista)
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
+                }
+            }
+
+            get("/categorias") {
+                val tipo = call.request.queryParameters["tipo"]
+                try {
+                    val categorias = DatabaseFactory.dbQuery {
+                        val consulta = CategoriasFinancieras.selectAll()
+                        val filtrada = if (tipo.isNullOrBlank()) consulta else
+                            consulta.where { CategoriasFinancieras.tipo eq tipo }
+                        filtrada
+                            .orderBy(CategoriasFinancieras.id to SortOrder.ASC)
+                            .map { fila -> com.example.com.nexo.app.model.CategoriaFinanciera(
+                                idCategoria = fila[CategoriasFinancieras.id],
+                                nombre = fila[CategoriasFinancieras.nombre],
+                                tipo = fila[CategoriasFinancieras.tipo]
+                            ) }
+                    }
+                    call.respond(HttpStatusCode.OK, categorias)
+                } catch (e: Exception) {
+                    call.respond(HttpStatusCode.InternalServerError, "No se pudieron cargar categorías: ${e.message}")
                 }
             }
 

@@ -22,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import com.nexo.app.data.local.SessionManager
 import com.nexo.app.model.UsuarioResponse
+import com.nexo.app.model.EstadoRecompensas
 import com.nexo.app.util.ApiConfig
 import io.ktor.client.statement.bodyAsText
 import kotlinx.coroutines.Dispatchers
@@ -74,6 +75,12 @@ class LoginViewModel(private val sessionManager: SessionManager) : ViewModel() {
                     val id = usuarioResponse.idUsuario
                     if(id > 0) {
                         sessionManager.saveUserId(id)
+                        sessionManager.saveGamification(usuarioResponse.puntos, usuarioResponse.racha)
+                        runCatching {
+                            val estadoPremios: EstadoRecompensas = client.get("${ApiConfig.RECOMPENSAS_URL}/usuario/$id").body()
+                            sessionManager.saveGamification(estadoPremios.puntos, usuarioResponse.racha)
+                            sessionManager.saveRewardStyle(estadoPremios.temaVisualActivo, estadoPremios.iconoVisualActivo)
+                        }
                         println("DEBUG: ID $id guardado exitosamente")
                         //Forzamos el cambio al hilo principal para que la UI se entere
                         withContext(Dispatchers.Main){

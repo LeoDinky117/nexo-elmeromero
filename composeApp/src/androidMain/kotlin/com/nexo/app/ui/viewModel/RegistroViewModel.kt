@@ -70,7 +70,7 @@ class RegistroViewModel : ViewModel() {
         }
         val edadNumerica = edad.value.toIntOrNull() ?: 0
         if (edadNumerica <15 || edadNumerica > 25){
-            println("La edad debe permitida es de 15 a 25 años...")
+            println("La edad permitida es de 15 a 25 años...")
             println("Por favor ingrese una edad valida")
             return
         }

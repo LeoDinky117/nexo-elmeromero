@@ -1,27 +1,41 @@
 package com.nexo.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.*
 import com.nexo.app.data.local.SessionManager
+import com.nexo.app.data.local.PresupuestoRepository
 import com.nexo.app.ui.screens.AddMovimientoScreen
+import com.nexo.app.ui.screens.CalendarioScreen
 import com.nexo.app.ui.screens.GastosScreen
 import com.nexo.app.ui.screens.HomeScreen
 import com.nexo.app.ui.screens.LoginScreen
 import com.nexo.app.ui.screens.MainHome
 import com.nexo.app.ui.screens.MetasScreen
 import com.nexo.app.ui.screens.PerfilScreen
+import com.nexo.app.ui.screens.PresupuestoScreen
 import com.nexo.app.ui.screens.RegistroScreen
 import com.nexo.app.ui.screens.SuccessScreen
 import com.nexo.app.ui.viewModel.MovimientosViewModel
+import com.nexo.app.ui.viewModel.CalendarioViewModel
+import com.nexo.app.ui.viewModel.PresupuestoViewModel
 import com.nexo.app.viewmodel.MetasViewModel
 import com.nexo.app.ui.viewModel.PerfilViewModel
+import com.nexo.app.ui.LocalNexoPalette
+import com.nexo.app.ui.LocalNexoProfileIcon
+import com.nexo.app.ui.parseNexoPalette
 
 @Composable
 fun AppNavigation(sessionManager: SessionManager) {
     val navController = rememberNavController()
+    val paletteData by sessionManager.temaPaletteFlow.collectAsState(initial = "#C837AB|#0B1019|#161C28|#FF508E")
+    val profileIcon by sessionManager.profileIconFlow.collectAsState(initial = "👤")
 
     // 1. ViewModel de Movimientos con SessionManager
     val  movimientosVM : MovimientosViewModel = viewModel(
@@ -50,7 +64,26 @@ fun AppNavigation(sessionManager: SessionManager) {
         }
     )
 
-    NavHost(
+    val presupuestoRepository = remember(sessionManager) {
+        PresupuestoRepository(sessionManager.applicationContext)
+    }
+    val presupuestoVM: PresupuestoViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                PresupuestoViewModel(sessionManager, presupuestoRepository) as T
+        }
+    )
+    val calendarioVM: CalendarioViewModel = viewModel(
+        factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                CalendarioViewModel(sessionManager, presupuestoRepository) as T
+        }
+    )
+
+    CompositionLocalProvider(
+      LocalNexoPalette provides parseNexoPalette(paletteData),
+      LocalNexoProfileIcon provides profileIcon
+    ) { NavHost(
         navController = navController,
         startDestination = Routes.LOGIN
     ) {
@@ -102,6 +135,14 @@ fun AppNavigation(sessionManager: SessionManager) {
             GastosScreen(navController, movimientosVM)
         }
 
+        composable(Routes.CALENDARIO) {
+            CalendarioScreen(navController, calendarioVM)
+        }
+
+        composable(Routes.PRESUPUESTO) {
+            PresupuestoScreen(navController, presupuestoVM, movimientosVM)
+        }
+
         composable(Routes.METAS){
             MetasScreen(navController,  viewModel = metasVM)
 
@@ -125,5 +166,5 @@ fun AppNavigation(sessionManager: SessionManager) {
             SuccessScreen(navController, movimientosVM
             )
         }
-    }
+    } }
 }

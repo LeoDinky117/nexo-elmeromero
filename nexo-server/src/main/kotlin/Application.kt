@@ -14,4 +14,6 @@ fun Application.module() {
     //configureDatabases()
     configureSecurity()
     configureRouting()
+    crearTablasRecompensas()
+    configureRecompensas()
 }

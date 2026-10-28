@@ -2,6 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
+    </queries>
 
     <application
             android:allowBackup="true"
@@ -11,6 +20,51 @@
             android:supportsRtl="true"
             android:usesCleartextTraffic="true"
             android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <receiver
+                android:name="com.nexo.app.util.BorradoresReminderReceiver"
+                android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <receiver
+                android:name="com.nexo.app.widgets.MovimientoWidgetProvider"
+                android:exported="true"
+                android:label="NEXO: movimiento rápido">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                    android:name="android.appwidget.provider"
+                    android:resource="@xml/movimiento_widget_info" />
+        </receiver>
+        <receiver
+                android:name="com.nexo.app.widgets.CalendarioWidgetProvider"
+                android:exported="true"
+                android:label="NEXO: calendario">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+            <meta-data
+                    android:name="android.appwidget.provider"
+                    android:resource="@xml/calendario_widget_info" />
+        </receiver>
+        <receiver
+                android:name="com.nexo.app.util.RecordatorioPresupuestoReceiver"
+                android:exported="false">
+            <intent-filter>
+                <action android:name="com.nexo.app.action.BUDGET_REMINDER" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <activity
+                android:name="com.nexo.app.widgets.CapturaMovimientoActivity"
+                android:exported="false"
+                android:label="Movimiento rápido"
+                android:theme="@android:style/Theme.Material.Light.NoActionBar" />
         <activity
                 android:exported="true"
                 android:name="com.nexo.app.MainActivity">

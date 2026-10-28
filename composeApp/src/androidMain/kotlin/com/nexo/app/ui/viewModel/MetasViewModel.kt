@@ -20,6 +20,7 @@ import io.ktor.http.contentType
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 
 class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() {
     private var userIdReal: Int = 0
@@ -88,8 +89,7 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
         fechaLimite = ""
     }
 
-    fun cargarMetas(idUsuario: Int) {
-        viewModelScope.launch {
+    fun cargarMetas(idUsuario: Int): Job = viewModelScope.launch {
             _cargando.value = true
             try {
                 _metas.value = client.get("${ApiConfig.METAS_URL}/usuario/$idUsuario").body()
@@ -100,6 +100,9 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
                 _cargando.value = false
             }
         }
+
+    fun refrescarMetas(): Job = viewModelScope.launch {
+        if (userIdReal > 0) cargarMetas(userIdReal).join()
     }
 
     fun registrarMeta() {

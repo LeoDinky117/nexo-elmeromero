@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="WidgetCalendarWeekday">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#FF8F9BAD</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="WidgetCalendarDay">
+        <item name="android:layout_width">20dp</item>
+        <item name="android:layout_height">15dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:textColor">#FFE7ECF4</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+    <style name="WidgetCalendarDot">
+        <item name="android:layout_width">8dp</item>
+        <item name="android:layout_height">7dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:text">•</item>
+        <item name="android:textColor">#FFEA4D9B</item>
+        <item name="android:textSize">8sp</item>
+        <item name="android:visibility">invisible</item>
+    </style>
+</resources>
