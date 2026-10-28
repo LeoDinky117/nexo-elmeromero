@@ -4,9 +4,7 @@ package db
 import com.example.com.nexo.app.model.Movimiento
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-import org.jetbrains.exposed.sql.Database
-import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 
 object DatabaseFactory {
@@ -40,20 +38,57 @@ object DatabaseFactory {
             // Crea las tablas en la BD si aún no existen
             transaction(database) {
                 println("DEBUG: Conectado a: ${connection.metadata { databaseProductVersion }}")
-                SchemaUtils.create(Usuarios, Movimientos)
+                SchemaUtils.create(Usuarios, Movimientos, CategoriasFinancieras, ActividadDiaria)
+                sembrarCategorias()
             }
         }catch (e: Exception){
             println("ERROR DE CONEXIÓN: No se pudo conectar a la base de datos...")
             println("Detalle:  ${e.message}")
         }
     }
+
+    private fun sembrarCategorias() {
+        val categorias = listOf(
+            "Trabajo" to "Ingreso", "Comida" to "Gasto", "Ocio" to "Gasto",
+            "Trans." to "Gasto", "Otros" to "Gasto", "Ventas" to "Ingreso",
+            "Freelance" to "Ingreso", "Inversiones" to "Ingreso", "Regalo" to "Ingreso",
+            "Otros ingresos" to "Ingreso", "Hogar" to "Gasto", "Servicios" to "Gasto",
+            "Salud" to "Gasto", "Educación" to "Gasto", "Compras" to "Gasto",
+            "Suscripciones" to "Gasto", "Deudas" to "Gasto", "Viajes" to "Gasto",
+            "Mascotas" to "Gasto", "Productos" to "Gasto",
+            "Rendimientos" to "Ingreso", "Intereses" to "Ingreso"
+        )
+        categorias.forEach { (nombreCategoria, tipoCategoria) ->
+            val existe = CategoriasFinancieras.selectAll()
+                .where { (CategoriasFinancieras.nombre eq nombreCategoria) and (CategoriasFinancieras.tipo eq tipoCategoria) }
+                .any()
+            if (!existe) {
+                CategoriasFinancieras.insert {
+                    it[nombre] = nombreCategoria
+                    it[tipo] = tipoCategoria
+                }
+            }
+        }
+    }
     private fun createHikariDataSource(): HikariDataSource {
         val config = HikariConfig().apply {
-            driverClassName = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
-            // Reemplaza con tus datos reales de DBeaver
-            jdbcUrl = "jdbc:sqlserver://localhost:1433;databaseName=Nexo;encrypt=false;trustServerCertificate=true"
-            username = "sa"
-            password = "Adidas_117"
+
+            //Driver de mariaDB
+            driverClassName = "org.mariadb.jdbc.Driver"
+
+
+
+
+            //jdbcUrl de mariaDB
+            jdbcUrl = "jdbc:mariadb://localhost:3306/Nexo"
+            username = "root"
+            password = "root117"
+
+            //conexion con sqlServer
+            //driverClassName = "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+            //jdbcUrl = "jdbc:sqlserver://localhost:1433;databaseName=Nexo;encrypt=false;trustServerCertificate=true"
+            //username = "sa"
+            //password = "Adidas_117"
             maximumPoolSize = 3
             isAutoCommit = false
             transactionIsolation = "TRANSACTION_REPEATABLE_READ"

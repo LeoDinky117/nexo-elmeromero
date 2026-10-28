@@ -1,9 +1,9 @@
 package db
 
 import org.jetbrains.exposed.sql.Table
-import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.javatime.CurrentDateTime
+import org.jetbrains.exposed.sql.javatime.date
 
 //import org.jetbrains.exposed.sql.javatime.date
 // Tabla Usuarios
@@ -33,6 +33,27 @@ object Movimientos : Table("Movimientos") {
     val descripcion = varchar("Descripcion", 200)
 
     override val primaryKey = PrimaryKey(id)
+}
+
+// Categorías que alimentan el selector de movimientos.
+object CategoriasFinancieras : Table("CategoriasFinancieras") {
+    val id = integer("IdCategoria").autoIncrement()
+    val nombre = varchar("Nombre", 100)
+    val tipo = varchar("Tipo", 30)
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+// Un registro por usuario y día en que inició sesión, para calcular rachas sin duplicar días.
+object ActividadDiaria : Table("ActividadDiaria") {
+    val id = integer("IdActividad").autoIncrement()
+    val idUsuario = integer("IdUsuario").references(Usuarios.id)
+    val fecha = date("Fecha")
+
+    override val primaryKey = PrimaryKey(id)
+    init {
+        uniqueIndex(idUsuario, fecha)
+    }
 }
 
 // Tabla principal de metas

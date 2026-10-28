@@ -31,6 +31,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.nexo.app.ui.components.InputField
 import com.nexo.app.viewmodel.MetasViewModel
+import com.nexo.app.ui.components.NexoPullToRefresh
+import com.nexo.app.ui.LocalNexoPalette
 
 @Composable
 fun MetasScreen(
@@ -50,11 +52,10 @@ fun MetasScreen(
         }
     }
 
-    val fondo = Brush.verticalGradient(
-        listOf(Color(0xFF0D1B2A), Color(0xFF081427), Color(0xFF050C1A))
-    )
+    val paleta = LocalNexoPalette.current
+    val fondo = Brush.verticalGradient(listOf(paleta.background, paleta.background.copy(alpha = 0.92f), Color(0xFF050C1A)))
     val botonGradiente = Brush.horizontalGradient(
-        listOf(Color(0xFFFFA726), Color(0xFFFF5E7E))
+        listOf(paleta.accent, paleta.highlight)
     )
 
     Scaffold(
@@ -62,11 +63,14 @@ fun MetasScreen(
     ) { paddingValues ->
 
 
+        NexoPullToRefresh(
+            onRefresh = { viewModel.refrescarMetas().join() },
+            modifier = Modifier.fillMaxSize().padding(paddingValues)
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(fondo)
-                .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp)
         ) {
@@ -103,7 +107,7 @@ fun MetasScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (cargando) {
-                CircularProgressIndicator(color = Color(0xFFFFA726))
+                CircularProgressIndicator(color = paleta.accent)
             } else if (metas.isEmpty()) {
                 Text("Aún no hay metas registradas", color = Color.White.copy(alpha = 0.7f))
             } else {
@@ -124,7 +128,7 @@ fun MetasScreen(
                         Text("Objetivo: $${meta.montoObjetivo}", color = Color.White.copy(alpha = 0.85f))
                         Text("Ahorrado: $${meta.totalAhorrado}", color = Color.White.copy(alpha = 0.85f))
                         Spacer(modifier = Modifier.height(10.dp))
-                        LinearProgressIndicator(progress = { progreso }, modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(progress = { progreso }, color = paleta.accent, modifier = Modifier.fillMaxWidth())
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             "${(progreso * 100).toInt()}% completado",
@@ -135,6 +139,7 @@ fun MetasScreen(
                 }
             }
             Spacer(modifier = Modifier.height(30.dp))
+        }
         }
     }
 }

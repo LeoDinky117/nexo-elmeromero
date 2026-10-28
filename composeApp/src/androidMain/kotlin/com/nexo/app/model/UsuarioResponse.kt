@@ -12,6 +12,10 @@ data class UsuarioResponse (
     @SerialName("Nombre")
     val nombre: String? = null,
     @SerialName("Correo")
-    val correo: String? = null
+    val correo: String? = null,
+    @SerialName("Racha")
+    val racha: Int = 0,
+    @SerialName("Puntos")
+    val puntos: Int = 0
 
 )

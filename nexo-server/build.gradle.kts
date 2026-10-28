@@ -46,6 +46,9 @@ dependencies {
     testImplementation("io.ktor:ktor-server-test-host")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
 
+    //Driver para MariaDB
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.6")
+
     //Driver para SQL Server (Para conectar con DBeaver)
     implementation("com.microsoft.sqlserver:mssql-jdbc:13.2.1.jre11")
     //HikariCp para que DataBaseFactory no marque error
