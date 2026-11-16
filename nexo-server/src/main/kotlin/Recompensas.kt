@@ -3,18 +3,34 @@ package com.example
 import com.example.com.nexo.app.model.*
 import db.DatabaseFactory
 import db.Usuarios
+import db.ActividadDiaria
+import db.MetasAhorro
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.http.content.*
+import io.ktor.utils.io.*
+import io.ktor.utils.io.core.*
+import kotlinx.io.readByteArray
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.plus
 import org.jetbrains.exposed.sql.javatime.CurrentDateTime
 import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.transactions.transaction
+import java.net.URI
+import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.temporal.ChronoUnit
+import kotlin.system.measureTimeMillis
 
 object CatalogoRecompensas : Table("Recompensas") {
     val id = integer("IdRecompensa").autoIncrement()
@@ -86,15 +102,115 @@ internal fun validarPremio(p: NuevaRecompensa) {
             "Un tema requiere cuatro colores hexadecimales separados por |."
         }
     } else {
-        require(p.valorVisual.isNotBlank() && p.valorVisual.length <= 12) { "El icono debe ser un emoji o símbolo de hasta 12 caracteres." }
+        val esImagen = Regex("^/admin/icons/[0-9a-f-]{36}\\.(png|jpg|webp)$", RegexOption.IGNORE_CASE).matches(p.valorVisual)
+        require(esImagen || (p.valorVisual.isNotBlank() && p.valorVisual.length <= 12)) {
+            "El icono debe ser un emoji o una imagen importada desde el panel."
+        }
     }
 }
 
-private suspend fun ApplicationCall.esAdministrador(): Boolean {
-    val esperado = System.getenv("NEXO_ADMIN_API_KEY")?.takeIf { it.isNotBlank() }
-    val recibido = request.headers["X-Admin-Key"]
+private const val TAMANO_MAXIMO_ICONO = 2 * 1024 * 1024
+
+private fun directorioIconosAdmin(): File {
+    val configurado = System.getenv("NEXO_ADMIN_ICON_DIR")?.trim()?.takeIf(String::isNotEmpty)
+    val ruta = configurado ?: "${System.getProperty("user.home")}/.nexo/admin-icons"
+    return File(ruta).canonicalFile
+}
+
+internal fun archivoIconoAdmin(nombre: String): File? {
+    if (!Regex("^[0-9a-f-]{36}\\.(png|jpg|webp)$", RegexOption.IGNORE_CASE).matches(nombre)) return null
+    return runCatching {
+        val dir = directorioIconosAdmin()
+        val archivo = File(dir, nombre).canonicalFile
+        archivo.takeIf { it.parentFile == dir && it.isFile }
+    }.getOrNull()
+}
+
+private fun extensionImagenValida(bytes: ByteArray): String? = when {
+    bytes.size >= 8 && bytes.take(8).map { it.toInt() and 0xff } == listOf(137, 80, 78, 71, 13, 10, 26, 10) -> "png"
+    bytes.size >= 3 && bytes[0] == 0xff.toByte() && bytes[1] == 0xd8.toByte() && bytes[2] == 0xff.toByte() -> "jpg"
+    bytes.size >= 12 && bytes.decodeToString(0, 4) == "RIFF" && bytes.decodeToString(8, 12) == "WEBP" -> "webp"
+    else -> null
+}
+
+private fun guardarIconoAdmin(bytes: ByteArray): String {
+    require(bytes.size in 1..TAMANO_MAXIMO_ICONO) { "La imagen debe pesar como máximo 2 MB." }
+    val extension = extensionImagenValida(bytes)
+        ?: throw IllegalArgumentException("El archivo no es un PNG, JPG/JPEG o WebP válido.")
+    val directorio = directorioIconosAdmin()
+    if (!directorio.isDirectory && !directorio.mkdirs()) {
+        throw IOException("No se pudo crear el directorio para los iconos.")
+    }
+    val nombre = "${UUID.randomUUID()}.$extension"
+    val archivo = File(directorio, nombre)
+    if (!archivo.createNewFile()) throw IOException("No se pudo reservar el archivo del icono.")
+    try {
+        archivo.writeBytes(bytes)
+    } catch (error: Exception) {
+        archivo.delete()
+        throw error
+    }
+    return "/admin/icons/$nombre"
+}
+
+private const val COOKIE_SESION_ADMIN = "nexo_admin_session"
+private const val DURACION_SESION_ADMIN_MS = 30L * 60L * 1000L
+private val sesionesAdmin = ConcurrentHashMap<String, Long>()
+private val randomAdmin = SecureRandom()
+
+private fun origenAdminConfigurado(): String? {
+    val origen = System.getenv("NEXO_ADMIN_PUBLIC_ORIGIN")?.trim()?.trimEnd('/') ?: return null
+    val uri = runCatching { URI(origen) }.getOrNull() ?: return null
+    val localHttp = uri.scheme == "http" && uri.host in setOf("localhost", "127.0.0.1", "::1")
+    val https = uri.scheme == "https"
+    if ((!https && !localHttp) || uri.rawPath.orEmpty().isNotEmpty() || uri.rawQuery != null || uri.rawFragment != null || uri.userInfo != null) return null
+    return origen
+}
+
+private fun ApplicationCall.origenAdminValido(): Boolean {
+    val esperado = origenAdminConfigurado()
+    val recibido = request.headers["Origin"]?.trim()?.trimEnd('/')
     val valido = esperado != null && recibido != null && MessageDigest.isEqual(esperado.toByteArray(), recibido.toByteArray())
-    if (!valido) respond(HttpStatusCode.Unauthorized, mapOf("mensaje" to "Acceso administrativo no autorizado."))
+    if (!valido) {
+        application.log.warn(
+            "Origen administrativo rechazado: recibido='{}', configurado='{}'",
+            recibido ?: "(ausente)",
+            esperado ?: "(no configurado o no válido)"
+        )
+    }
+    return valido
+}
+
+private fun nuevaSesionAdmin(): String {
+    val bytes = ByteArray(32)
+    randomAdmin.nextBytes(bytes)
+    return bytes.joinToString(separator = "") { byte ->
+        (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
+}
+
+private fun ApplicationCall.establecerCookieAdmin(token: String, maxAge: Int) {
+    val secure = origenAdminConfigurado()?.startsWith("https://") == true
+    val secureFlag = if (secure) "; Secure" else ""
+    response.headers.append(
+        "Set-Cookie",
+        "$COOKIE_SESION_ADMIN=$token; Path=/admin; HttpOnly; SameSite=Strict; Max-Age=$maxAge$secureFlag"
+    )
+    response.headers.append("Cache-Control", "no-store")
+    response.headers.append("X-Content-Type-Options", "nosniff")
+}
+
+private suspend fun ApplicationCall.esAdministrador(): Boolean {
+    val token = request.cookies[COOKIE_SESION_ADMIN]
+    val vence = token?.let(sesionesAdmin::get)
+    val ahora = System.currentTimeMillis()
+    val valido = token != null && vence != null && vence > ahora
+    sesionesAdmin.entries.removeIf { it.value <= ahora }
+    if (!valido) {
+        if (token != null) sesionesAdmin.remove(token)
+        establecerCookieAdmin("", 0)
+        respond(HttpStatusCode.Unauthorized, mapOf("mensaje" to "La sesión administrativa venció. Vuelve a iniciar sesión."))
+    }
     return valido
 }
 
@@ -132,6 +248,45 @@ private fun leerEstadoRecompensas(usuarioId: Int): EstadoRecompensas {
 
 fun Application.configureRecompensas() {
     routing {
+        route("/admin/sesion") {
+            post {
+                if (!call.origenAdminValido()) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("mensaje" to "Origen no autorizado."))
+                    return@post
+                }
+                val esperado = System.getenv("NEXO_ADMIN_API_KEY")?.takeIf { it.length >= 32 }
+                if (esperado == null) {
+                    call.respond(HttpStatusCode.ServiceUnavailable, mapOf("mensaje" to "El acceso administrativo no está configurado correctamente en el servidor."))
+                    return@post
+                }
+                val body = runCatching { call.receive<Map<String, String>>() }.getOrNull()
+                val recibido = body?.get("clave")
+                if (recibido == null || !MessageDigest.isEqual(esperado.toByteArray(), recibido.toByteArray())) {
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("mensaje" to "Clave administrativa incorrecta."))
+                    return@post
+                }
+                val ahora = System.currentTimeMillis()
+                sesionesAdmin.entries.removeIf { it.value <= ahora }
+                val token = nuevaSesionAdmin()
+                sesionesAdmin[token] = ahora + DURACION_SESION_ADMIN_MS
+                call.establecerCookieAdmin(token, 1800)
+                call.respond(HttpStatusCode.OK, mapOf("mensaje" to "Sesión administrativa iniciada."))
+            }
+            get {
+                if (!call.esAdministrador()) return@get
+                call.response.headers.append("Cache-Control", "no-store")
+                call.respond(HttpStatusCode.OK, mapOf("autenticado" to true))
+            }
+            post("/salir") {
+                if (!call.origenAdminValido()) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("mensaje" to "Origen no autorizado."))
+                    return@post
+                }
+                call.request.cookies[COOKIE_SESION_ADMIN]?.let(sesionesAdmin::remove)
+                call.establecerCookieAdmin("", 0)
+                call.respond(HttpStatusCode.OK, mapOf("mensaje" to "Sesión finalizada."))
+            }
+        }
         route("/recompensas") {
             get("/usuario/{id}") {
                 val usuarioId = call.parameters["id"]?.toIntOrNull()
@@ -202,6 +357,10 @@ fun Application.configureRecompensas() {
             }
             post {
                 if (!call.esAdministrador()) return@post
+                if (!call.origenAdminValido()) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("mensaje" to "Origen no autorizado."))
+                    return@post
+                }
                 try {
                     val p = call.receive<NuevaRecompensa>()
                     validarPremio(p)
@@ -213,17 +372,105 @@ fun Application.configureRecompensas() {
                 } catch (e: IllegalArgumentException) { call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to (e.message ?: "Datos no válidos."))) }
                 catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; call.respond(HttpStatusCode.Conflict, mapOf("mensaje" to "No se pudo agregar el premio.")) }
             }
+            post("/iconos") {
+                if (!call.esAdministrador()) return@post
+                if (!call.origenAdminValido()) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("mensaje" to "Origen no autorizado."))
+                    return@post
+                }
+                try {
+                    var imagen: ByteArray? = null
+                    val multipart = call.receiveMultipart(formFieldLimit = 16 * 1024)
+                    multipart.forEachPart { parte ->
+                        try {
+                            if (parte is PartData.FileItem && parte.name == "icono" && imagen == null) {
+                            val contenido = parte.provider().readRemaining(TAMANO_MAXIMO_ICONO + 1L).readByteArray()
+                                require(contenido.size <= TAMANO_MAXIMO_ICONO) { "La imagen debe pesar como máximo 2 MB." }
+                                imagen = contenido
+                            }
+                        } finally {
+                            parte.dispose()
+                        }
+                    }
+                    val bytes = imagen ?: throw IllegalArgumentException("Selecciona una imagen para subir.")
+                    call.respond(HttpStatusCode.Created, mapOf("ruta" to guardarIconoAdmin(bytes)))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to (e.message ?: "Imagen no válida.")))
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    call.application.log.warn("No se pudo guardar la imagen del premio", e)
+                    call.respond(HttpStatusCode.ServiceUnavailable, mapOf("mensaje" to "No se pudo guardar la imagen."))
+                }
+            }
             get("/metricas") {
                 if (!call.esAdministrador()) return@get
-                val metricas = DatabaseFactory.dbQuery {
-                    MetricasRecompensas(
-                        usuarios = Usuarios.selectAll().count(),
-                        premiosActivos = CatalogoRecompensas.selectAll().where { CatalogoRecompensas.activa eq true }.count(),
-                        desbloqueos = RecompensasDesbloqueadas.selectAll().count(),
-                        puntosAcumulados = Usuarios.selectAll().sumOf { it[Usuarios.puntos].toLong() }
-                    )
+                lateinit var metricas: MetricasRecompensas
+                val tiempo = measureTimeMillis {
+                    metricas = DatabaseFactory.dbQuery {
+                        val hoy = LocalDate.now()
+                        // Leer solo las columnas agregadas necesarias; no cargar correos ni contraseñas al panel.
+                        val usuarios = Usuarios.select(Usuarios.id, Usuarios.fechaRegistro, Usuarios.puntos).toList()
+                        val fechasActividad = ActividadDiaria.selectAll().map {
+                            it[ActividadDiaria.idUsuario] to it[ActividadDiaria.fecha]
+                        }.groupBy({ it.first }, { it.second })
+                        val activosDesde = hoy.minusDays(29)
+                        // Actividad diaria registrada al usar la app; limita el conteo a cuentas existentes.
+                        val activos = usuarios.count { usuario ->
+                            val idUsuario = usuario[Usuarios.id]
+                            fechasActividad[idUsuario].orEmpty().any { fecha -> fecha in activosDesde..hoy }
+                        }
+                        val metas = MetasAhorro.select(MetasAhorro.fechaCreacion, MetasAhorro.fechaCumplimiento).toList()
+                        val metasCompletadas = metas.mapNotNull { fila ->
+                            val creacion = fila[MetasAhorro.fechaCreacion].toLocalDate()
+                            fila[MetasAhorro.fechaCumplimiento]?.let { ChronoUnit.DAYS.between(creacion, it.toLocalDate()).coerceAtLeast(0) }
+                        }
+                        val inicioCohorte = hoy.minusDays(60)
+                        val finCohorte = hoy.minusDays(30)
+                        val cohorte = usuarios.filter {
+                            val registro = it[Usuarios.fechaRegistro].toLocalDate()
+                            registro in inicioCohorte..finCohorte
+                        }
+                        val retenidos = cohorte.count { usuario ->
+                            val registro = usuario[Usuarios.fechaRegistro].toLocalDate()
+                            fechasActividad[usuario[Usuarios.id]].orEmpty().any { fecha -> fecha in registro.plusDays(30)..hoy }
+                        }
+                        val mesActual = YearMonth.from(hoy)
+                        val registrosMensuales = (5L downTo 0L).map { offset ->
+                            val mes = mesActual.minusMonths(offset)
+                            RegistroMensual(
+                                mes = mes.toString(),
+                                cantidad = usuarios.count { YearMonth.from(it[Usuarios.fechaRegistro]) == mes }.toLong()
+                            )
+                        }
+                        val rachasActivas = fechasActividad.values.mapNotNull { fechas ->
+                            val ordenadas = fechas.distinct().sortedDescending()
+                            var esperado = if (hoy in ordenadas) hoy else hoy.minusDays(1)
+                            var racha = 0
+                            for (fecha in ordenadas) {
+                                if (fecha != esperado) break
+                                racha++
+                                esperado = esperado.minusDays(1)
+                            }
+                            racha.takeIf { it > 0 }
+                        }
+                        MetricasRecompensas(
+                            usuarios = usuarios.size.toLong(),
+                            premiosActivos = CatalogoRecompensas.selectAll().where { CatalogoRecompensas.activa eq true }.count(),
+                            desbloqueos = RecompensasDesbloqueadas.selectAll().count(),
+                            puntosAcumulados = usuarios.sumOf { it[Usuarios.puntos].toLong() },
+                            usuariosActivos = activos.toLong(),
+                            usuariosInactivos = (usuarios.size - activos).toLong(),
+                            metasCompletadas = metasCompletadas.size.toLong(),
+                            promedioDiasMeta = metasCompletadas.average().takeIf { it.isFinite() } ?: 0.0,
+                            registrosMensuales = registrosMensuales,
+                            retencion30Dias = if (cohorte.isEmpty()) 0.0 else retenidos * 100.0 / cohorte.size,
+                            cohorteRetencion30Dias = cohorte.size.toLong(),
+                            usuariosConRacha = rachasActivas.size.toLong(),
+                            rachaPromedio = rachasActivas.average().takeIf { it.isFinite() } ?: 0.0
+                        )
+                    }
                 }
-                call.respond(metricas)
+                call.respond(metricas.copy(tiempoRespuestaMs = tiempo.toDouble()))
             }
         }
     }

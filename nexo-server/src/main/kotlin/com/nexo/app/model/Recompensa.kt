@@ -48,5 +48,21 @@ data class MetricasRecompensas(
     @SerialName("Usuarios") val usuarios: Long,
     @SerialName("PremiosActivos") val premiosActivos: Long,
     @SerialName("Desbloqueos") val desbloqueos: Long,
-    @SerialName("PuntosAcumulados") val puntosAcumulados: Long
+    @SerialName("PuntosAcumulados") val puntosAcumulados: Long,
+    @SerialName("UsuariosActivos") val usuariosActivos: Long = 0,
+    @SerialName("UsuariosInactivos") val usuariosInactivos: Long = 0,
+    @SerialName("MetasCompletadas") val metasCompletadas: Long = 0,
+    @SerialName("PromedioDiasMeta") val promedioDiasMeta: Double = 0.0,
+    @SerialName("RegistrosMensuales") val registrosMensuales: List<RegistroMensual> = emptyList(),
+    @SerialName("Retencion30Dias") val retencion30Dias: Double = 0.0,
+    @SerialName("CohorteRetencion30Dias") val cohorteRetencion30Dias: Long = 0,
+    @SerialName("UsuariosConRacha") val usuariosConRacha: Long = 0,
+    @SerialName("RachaPromedio") val rachaPromedio: Double = 0.0,
+    @SerialName("TiempoRespuestaMs") val tiempoRespuestaMs: Double = 0.0
+)
+
+@Serializable
+data class RegistroMensual(
+    @SerialName("Mes") val mes: String,
+    @SerialName("Cantidad") val cantidad: Long
 )

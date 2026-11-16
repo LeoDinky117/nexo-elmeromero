@@ -2,6 +2,7 @@ package com.nexo.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
@@ -11,8 +12,11 @@ import com.nexo.app.navigation.App
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(11, 16, 25)),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.rgb(11, 16, 25))
+        )
 
         // 1. Inicializamos el SessionManager aquí
         val sessionManager = SessionManager(this)

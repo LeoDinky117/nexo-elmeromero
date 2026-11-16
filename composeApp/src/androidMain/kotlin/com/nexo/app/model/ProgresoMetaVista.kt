@@ -5,6 +5,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ProgresoMetaVista(
+    @SerialName("IdMeta")
+    val idMeta: Int,
     @SerialName("NombreMeta")
     val nombreMeta: String,
     @SerialName("MontoObjetivo")
@@ -13,6 +15,10 @@ data class ProgresoMetaVista(
     val totalAhorrado: Double,
     @SerialName("FechaLimite")
     val fechaLimite: String,
+    @SerialName("FechaCreacion")
+    val fechaCreacion: String,
+    @SerialName("DiasSinAbonos")
+    val diasSinAbonos: Long = 0,
     @SerialName("Activa")
     val activa: Boolean
 )

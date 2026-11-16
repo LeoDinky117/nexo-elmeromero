@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.nexo.app.model.EventoCalendario
 import com.nexo.app.model.TipoEventoCalendario
+import com.nexo.app.model.VisualConceptoCalendario
 import com.nexo.app.ui.viewModel.CalendarioViewModel
 import com.nexo.app.ui.components.NexoPullToRefresh
 import com.nexo.app.ui.LocalNexoPalette
@@ -52,7 +53,7 @@ fun CalendarioScreen(navController: NavController, viewModel: CalendarioViewMode
     val mes = viewModel.mesVisible
     val seleccionado = viewModel.fechaSeleccionada
     val eventosSeleccionados = viewModel.eventosDelDia(seleccionado)
-    val diasConEventos = viewModel.eventosDelMes().map { it.fecha }.toSet()
+    val eventosPorFecha = viewModel.eventosDelMes().groupBy { it.fecha }
     val idioma = Locale.forLanguageTag("es-MX")
     val mesLabel = mes.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", idioma))
         .replaceFirstChar { it.titlecase(idioma) }
@@ -98,7 +99,8 @@ fun CalendarioScreen(navController: NavController, viewModel: CalendarioViewMode
                                     val fecha = mes.atDay(dia)
                                     val esSeleccionado = fecha == seleccionado
                                     val esHoy = fecha == LocalDate.now()
-                                    val tieneEvento = fecha.toString() in diasConEventos
+                                    val eventoDelDia = eventosPorFecha[fecha.toString()]?.firstOrNull()
+                                    val tieneEvento = eventoDelDia != null
                                     Column(
                                         Modifier.weight(1f).height(47.dp).clickable { viewModel.seleccionarFecha(fecha) },
                                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -120,7 +122,7 @@ fun CalendarioScreen(navController: NavController, viewModel: CalendarioViewMode
                                                 fontSize = 13.sp
                                             )
                                         }
-                                        Box(Modifier.padding(top = 1.dp).size(4.dp).background(if (tieneEvento) Color(0xFFC837AB) else Color.Transparent, CircleShape))
+                                        Box(Modifier.padding(top = 1.dp).size(4.dp).background(eventoDelDia?.let { Color(VisualConceptoCalendario.colorArgb(it)) } ?: Color.Transparent, CircleShape))
                                     }
                                 }
                             }
@@ -132,12 +134,17 @@ fun CalendarioScreen(navController: NavController, viewModel: CalendarioViewMode
 
             Spacer(Modifier.height(20.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    seleccionado.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", idioma)).replaceFirstChar { it.titlecase(idioma) },
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        seleccionado.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", idioma)).replaceFirstChar { it.titlecase(idioma) },
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (seleccionado == LocalDate.now()) {
+                        Text(" (HOY)", color = acentoCalendario, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
                 if (seleccionado != LocalDate.now()) {
                     Text("Hoy", color = acentoCalendario, modifier = Modifier.clickable { viewModel.irAHoy() }.padding(8.dp))
                 }
@@ -174,21 +181,27 @@ fun CalendarioScreen(navController: NavController, viewModel: CalendarioViewMode
                         else "Mes siguiente · ${mesSeccion.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", idioma)).replaceFirstChar { it.titlecase(idioma) }}",
                         color = acentoCalendario,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
+                        fontSize = 16.sp,
                         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                     )
                     if (eventosMes.isEmpty()) {
                         Text("Sin pagos ni ingresos programados.", color = Color(0xFF8995A7), fontSize = 12.sp, modifier = Modifier.padding(vertical = 5.dp))
                     } else eventosMes.forEach { evento ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(9.dp).background(colorEvento(evento.tipo), CircleShape))
+                            Text(VisualConceptoCalendario.icono(evento.concepto), fontSize = 21.sp)
+                            Box(Modifier.padding(start = 7.dp).size(8.dp).background(Color(VisualConceptoCalendario.colorArgb(evento)), CircleShape))
                             Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                 Text(evento.concepto, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                Text(LocalDate.parse(evento.fecha).format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", idioma)), color = Color(0xFFB8C2D1), fontSize = 12.sp)
+                                val fechaEvento = LocalDate.parse(evento.fecha)
+                                Text(
+                                    fechaEvento.format(DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", idioma)) + if (fechaEvento == hoy) " (HOY)" else "",
+                                    color = if (fechaEvento == hoy) acentoCalendario else Color(0xFFB8C2D1),
+                                    fontSize = 12.sp
+                                )
                             }
                             if (evento.monto > 0) Text(
                                 (if (evento.tipo == TipoEventoCalendario.INGRESO) "+" else "−") + dineroCalendario(evento.monto),
-                                color = colorEvento(evento.tipo), fontWeight = FontWeight.Bold
+                                color = Color(VisualConceptoCalendario.colorArgb(evento)), fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -209,7 +222,8 @@ private fun EventoCard(evento: EventoCalendario) {
         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
     ) {
         Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(10.dp).background(colorEvento(evento.tipo), CircleShape))
+            Text(VisualConceptoCalendario.icono(evento.concepto), fontSize = 23.sp)
+            Box(Modifier.padding(start = 8.dp).size(9.dp).background(Color(VisualConceptoCalendario.colorArgb(evento)), CircleShape))
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(evento.concepto, color = Color.White, fontWeight = FontWeight.Bold)
                 Text(
@@ -222,16 +236,10 @@ private fun EventoCard(evento: EventoCalendario) {
             }
             if (evento.monto > 0) Text(
                 (if (evento.tipo == TipoEventoCalendario.INGRESO) "+" else "−") + dineroCalendario(evento.monto),
-                color = colorEvento(evento.tipo), fontWeight = FontWeight.Bold
+                color = Color(VisualConceptoCalendario.colorArgb(evento)), fontWeight = FontWeight.Bold
             )
         }
     }
-}
-
-private fun colorEvento(tipo: TipoEventoCalendario) = when (tipo) {
-    TipoEventoCalendario.INGRESO -> Color(0xFF71D58B)
-    TipoEventoCalendario.PAGO -> Color(0xFFFF7599)
-    TipoEventoCalendario.CORTE -> Color(0xFFB985E8)
 }
 
 private fun dineroCalendario(valor: Double): String = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-MX")).format(valor)

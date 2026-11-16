@@ -18,3 +18,9 @@ data class PerfilUsuario(
     @SerialName("Puntos")
     val puntos: Int
 )
+
+@Serializable
+data class PerfilEditable(
+    @SerialName("Nombre") val nombre: String,
+    @SerialName("Correo") val correo: String
+)

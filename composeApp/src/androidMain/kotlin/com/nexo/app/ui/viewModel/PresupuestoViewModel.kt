@@ -62,7 +62,8 @@ class PresupuestoViewModel(
         deudaTexto: String,
         plazoTexto: String,
         periodicidad: PeriodicidadPresupuesto = PeriodicidadPresupuesto.MENSUAL,
-        movimientos: List<Movimiento> = emptyList()
+        movimientos: List<Movimiento> = emptyList(),
+        itemEditar: ItemPresupuesto? = null
     ) {
         val montoCapturado = montoTexto.replace(",", ".").toDoubleOrNull()
         val dia = diaTexto.toIntOrNull()
@@ -86,8 +87,14 @@ class PresupuestoViewModel(
             concepto.registraDeuda && (saldo == null || saldo < 0) -> mensaje = "Indica el saldo pendiente de la deuda."
             concepto.requierePlazo && (plazo == null || plazo !in 1..120) -> mensaje = "Indica un plazo entre 1 y 120 meses."
             else -> {
-                repository.agregar(
-                    ItemPresupuesto(
+                val itemActualizado = itemEditar?.copy(
+                        montoMensual = montoMensual,
+                        diaPago = dia,
+                        diaCorte = corte,
+                        saldoActual = if (concepto.registraDeuda) saldo else null,
+                        mesesPlazo = plazo,
+                        periodicidad = periodicidad
+                    ) ?: ItemPresupuesto(
                         id = UUID.randomUUID().toString(),
                         idUsuario = userId,
                         concepto = concepto.nombre,
@@ -103,10 +110,10 @@ class PresupuestoViewModel(
                         esencial = concepto.esencial,
                         periodicidad = periodicidad
                     )
-                )
+                if (itemEditar == null) repository.agregar(itemActualizado) else repository.actualizar(itemActualizado)
                 CalendarioWidgetProvider.actualizarTodos(sessionManager.applicationContext)
                 RecordatoriosPresupuesto.actualizar(sessionManager.applicationContext, userId, items.value)
-                mensaje = "Se agregó ${concepto.nombre} al presupuesto."
+                mensaje = if (itemEditar == null) "Se agregó ${concepto.nombre} al presupuesto." else "Se actualizó ${concepto.nombre}."
             }
         }
     }

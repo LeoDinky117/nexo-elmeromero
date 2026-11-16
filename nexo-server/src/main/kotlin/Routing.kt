@@ -18,14 +18,51 @@ import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.http.content.*
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.update
 import db.Usuarios // Asegúrate de que este sea el nombre de tu objeto Table
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.transactions.experimental.newSuspendedTransaction
 import org.jetbrains.exposed.sql.*
+import java.time.temporal.ChronoUnit
 
 fun Application.configureRouting() {
     routing {
+        intercept(ApplicationCallPipeline.Call) {
+            if (call.request.path() == "/admin" || call.request.path().startsWith("/admin/")) {
+                call.response.headers.append(
+                    "Content-Security-Policy",
+                    "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+                )
+                call.response.headers.append("X-Frame-Options", "DENY")
+                call.response.headers.append("X-Content-Type-Options", "nosniff")
+                call.response.headers.append("Referrer-Policy", "no-referrer")
+                call.response.headers.append(HttpHeaders.CacheControl, "no-store")
+            }
+            proceed()
+        }
+        // Sirve el portal web de administración desde src/main/resources/admin.
+        // La API administrativa conserva sus rutas independientes.
+        get("/admin") {
+            call.respondRedirect("/admin/")
+        }
+        get("/admin/icons/{name}") {
+            val name = call.parameters["name"]
+            val archivo = name?.let(::archivoIconoAdmin)
+            if (archivo == null) {
+                call.respond(HttpStatusCode.NotFound)
+                return@get
+            }
+            val tipo = when (archivo.extension.lowercase()) {
+                "png" -> ContentType.Image.PNG
+                "jpg" -> ContentType.Image.JPEG
+                else -> ContentType.parse("image/webp")
+            }
+            call.respondBytes(archivo.readBytes(), contentType = tipo)
+        }
+        staticResources("/admin", "admin")
+
         // Esta es la ruta que llamaremos desde Android
         post("/register") {
             try {
@@ -41,6 +78,8 @@ fun Application.configureRouting() {
                         it[edad ] = userRequest.edad
                         it[correo] = userRequest.correo
                         it[password] = userRequest.password
+                        // Guardamos la fecha en UTC para que no dependa de la zona horaria de MariaDB.
+                        it[fechaRegistro] = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
                         //it[edad] = userRequest.edad
                         //it[fecha] = LocalDateTime.now() //Esto es para agregar la fecha de registro
                     }
@@ -266,6 +305,8 @@ fun Application.configureRouting() {
                                         nombreMeta = fila[MetasAhorro.nombreMeta],
                                         montoObjetivo = fila[MetasAhorro.montoObjetivo].toDouble(),
                                         fechaLimite = fila[MetasAhorro.fechaLimite].toString(),
+                                        fechaCreacion = fila[MetasAhorro.fechaCreacion].toString(),
+                                        diasSinAbonos = 0L,
                                         activa = fila[MetasAhorro.activa],
                                         totalAhorrado = 0.0
                                     )
@@ -282,10 +323,21 @@ fun Application.configureRouting() {
                                 .groupBy({ aporte -> aporte.first }, { aporte -> aporte.second })
                                 .mapValues { (_, aportaciones) -> aportaciones.sum() }
 
+                            val ultimoAbonoPorMeta = ProgresoMetas
+                                .selectAll()
+                                .where { ProgresoMetas.idUsuario eq idUsuario }
+                                .map { it[ProgresoMetas.idMeta] to it[ProgresoMetas.fechaRegistro] }
+                                .groupBy({ it.first }, { it.second })
+                                .mapValues { (_, fechas) -> fechas.maxOrNull() }
+
                             // Si no hay aportaciones para una meta, su total queda en 0.0.
                             metasUsuario.map { meta ->
                                 meta.copy(
-                                    totalAhorrado = totalesPorMeta[meta.idMeta] ?: 0.0
+                                    totalAhorrado = totalesPorMeta[meta.idMeta] ?: 0.0,
+                                    diasSinAbonos = ChronoUnit.DAYS.between(
+                                        ultimoAbonoPorMeta[meta.idMeta] ?: java.time.LocalDate.parse(meta.fechaCreacion.take(10)),
+                                        java.time.LocalDate.now()
+                                    ).coerceAtLeast(0)
                                 )
                             }
                         }
@@ -300,6 +352,53 @@ fun Application.configureRouting() {
                         HttpStatusCode.InternalServerError,
                         "No se pudieron cargar las metas: ${e.message}"
                     )
+                }
+            }
+
+            post("/metas/{idMeta}/abonos") {
+                val idMeta = call.parameters["idMeta"]?.toIntOrNull()
+                if (idMeta == null) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to "Meta no válida."))
+                    return@post
+                }
+                try {
+                    val solicitud = call.receive<com.example.com.nexo.app.model.AportacionMetaRequest>()
+                    require(solicitud.idUsuario > 0 && solicitud.montoAhorrado.isFinite() && solicitud.montoAhorrado > 0.0) {
+                        "El abono debe ser un monto mayor que cero."
+                    }
+                    newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                        val meta = MetasAhorro.selectAll()
+                            .where { (MetasAhorro.idMeta eq idMeta) and (MetasAhorro.idUsuario eq solicitud.idUsuario) }
+                            .singleOrNull() ?: throw NoSuchElementException()
+                        require(meta[MetasAhorro.activa]) { "Solo puedes abonar a metas activas." }
+                        val totalActual = ProgresoMetas.selectAll()
+                            .where { (ProgresoMetas.idMeta eq idMeta) and (ProgresoMetas.idUsuario eq solicitud.idUsuario) }
+                            .sumOf { it[ProgresoMetas.montoAhorrado].toDouble() }
+                        val objetivo = meta[MetasAhorro.montoObjetivo].toDouble()
+                        require(solicitud.montoAhorrado <= objetivo - totalActual + 0.000001) {
+                            "El abono supera lo que falta para completar esta meta."
+                        }
+                        ProgresoMetas.insert {
+                            it[ProgresoMetas.idMeta] = idMeta
+                            it[ProgresoMetas.idUsuario] = solicitud.idUsuario
+                            it[montoAhorrado] = solicitud.montoAhorrado.toBigDecimal()
+                            it[fechaRegistro] = java.time.LocalDate.now()
+                        }
+                        if (totalActual + solicitud.montoAhorrado >= objetivo - 0.000001) {
+                            MetasAhorro.update({ MetasAhorro.idMeta eq idMeta }) {
+                                it[activa] = false
+                                it[fechaCumplimiento] = java.time.LocalDateTime.now()
+                            }
+                        }
+                    }
+                    call.respond(HttpStatusCode.Created, mapOf("mensaje" to "Abono guardado."))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to (e.message ?: "Abono no válido.")))
+                } catch (_: NoSuchElementException) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("mensaje" to "No encontramos esa meta activa."))
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    call.respond(HttpStatusCode.ServiceUnavailable, mapOf("mensaje" to "No se pudo guardar el abono."))
                 }
             }
 
@@ -326,6 +425,8 @@ fun Application.configureRouting() {
                                     edad = it[Usuarios.edad],
                                     correo = it[Usuarios.correo],
                                     fechaRegistro = it[Usuarios.fechaRegistro]
+                                        ?.atZone(java.time.ZoneOffset.UTC)
+                                        ?.withZoneSameInstant(java.time.ZoneId.of("America/Monterrey"))
                                         ?.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
                                         ?: "Sin fecha registrada",
                                     puntos = it[Usuarios.puntos]
@@ -341,6 +442,41 @@ fun Application.configureRouting() {
                     }
                 } catch (e: Exception) {
                     call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
+                }
+            }
+
+            put("/perfil/usuario/{id}") {
+                val idUsuario = call.parameters["id"]?.toIntOrNull()
+                if (idUsuario == null || idUsuario <= 0) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to "ID de usuario no válido."))
+                    return@put
+                }
+                try {
+                    val solicitud = call.receive<com.example.com.nexo.app.model.ActualizarPerfilRequest>()
+                    val nombre = solicitud.nombre.trim()
+                    val correo = solicitud.correo.trim().lowercase()
+                    require(nombre.length in 1..100) { "El nombre debe tener entre 1 y 100 caracteres." }
+                    require(correo.length <= 100 && Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(correo)) {
+                        "Escribe un correo electrónico válido."
+                    }
+                    newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                        Usuarios.selectAll().where { Usuarios.id eq idUsuario }.singleOrNull()
+                            ?: throw NoSuchElementException()
+                        val correoOcupado = Usuarios.selectAll().where { (Usuarios.correo eq correo) and (Usuarios.id neq idUsuario) }.any()
+                        require(!correoOcupado) { "Ese correo ya está registrado en otra cuenta." }
+                        Usuarios.update({ Usuarios.id eq idUsuario }) {
+                            it[Usuarios.nombre] = nombre
+                            it[Usuarios.correo] = correo
+                        }
+                    }
+                    call.respond(HttpStatusCode.OK, mapOf("mensaje" to "Perfil actualizado.", "Nombre" to nombre, "Correo" to correo))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to (e.message ?: "Datos no válidos.")))
+                } catch (_: NoSuchElementException) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("mensaje" to "No se encontró el usuario."))
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    call.respond(HttpStatusCode.Conflict, mapOf("mensaje" to "No se pudo actualizar el perfil."))
                 }
             }
 

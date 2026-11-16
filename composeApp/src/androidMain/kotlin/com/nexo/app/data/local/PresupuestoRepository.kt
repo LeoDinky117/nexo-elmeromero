@@ -28,6 +28,11 @@ class PresupuestoRepository(context: Context) {
         guardar(item.idUsuario, _items.value + item)
     }
 
+    fun actualizar(item: ItemPresupuesto) {
+        if (item.idUsuario != usuarioActivo || usuarioActivo <= 0 || _items.value.none { it.id == item.id }) return
+        guardar(item.idUsuario, _items.value.map { if (it.id == item.id) item else it })
+    }
+
     fun eliminar(id: String) {
         if (usuarioActivo <= 0) return
         guardar(usuarioActivo, _items.value.filterNot { it.id == id })

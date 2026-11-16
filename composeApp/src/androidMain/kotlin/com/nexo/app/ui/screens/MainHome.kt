@@ -77,6 +77,7 @@ import com.nexo.app.navigation.Routes
 import com.nexo.app.ui.viewModel.MovimientosViewModel
 import com.nexo.app.ui.components.NexoPullToRefresh
 import com.nexo.app.ui.LocalNexoPalette
+import com.nexo.app.ui.components.RewardVisual
 import com.nexo.app.ui.LocalNexoProfileIcon
 import nexo.composeapp.generated.resources.Res
 import nexo.composeapp.generated.resources.icon_agregar
@@ -171,7 +172,7 @@ fun MainHome(navController: NavController,
                 }
 
                 if (iconoPerfilActivo == "👤") PerfilGlyph(modifier = Modifier.size(50.dp), color = paleta.accent)
-                else Text(iconoPerfilActivo, fontSize = 38.sp)
+                else RewardVisual(iconoPerfilActivo, modifier = Modifier.size(50.dp), emojiFontSize = 38.sp)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -308,7 +309,7 @@ fun MyBottomBar(navController: NavController) {
                     val iconColor = if (currentRoute == item.route) LocalNexoPalette.current.accent else Color.Gray
                     if (item == BottomBarItem.Perfil) {
                         if (LocalNexoProfileIcon.current == "👤") PerfilGlyph(modifier = Modifier.size(26.dp), color = iconColor)
-                        else Text(LocalNexoProfileIcon.current, fontSize = 23.sp)
+                        else RewardVisual(LocalNexoProfileIcon.current, modifier = Modifier.size(26.dp), emojiFontSize = 23.sp)
                     } else {
                         Icon(
                             painter = painterResource(item.icon),

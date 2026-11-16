@@ -14,6 +14,7 @@ import com.nexo.app.data.local.PresupuestoRepository
 import com.nexo.app.data.local.SessionManager
 import com.nexo.app.model.EventosPresupuesto
 import com.nexo.app.model.TipoEventoCalendario
+import com.nexo.app.model.VisualConceptoCalendario
 import com.nexo.app.util.BorradoresNotificacion
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -159,23 +160,13 @@ class CalendarioWidgetProvider : AppWidgetProvider() {
                                 val esHoy = offset == 0 && fecha == hoy
                                 semana.setTextColor(textoId, if (esHoy) Color.rgb(21, 32, 48) else Color.rgb(231, 236, 244))
                                 if (esHoy) semana.setInt(textoId, "setBackgroundColor", Color.rgb(255, 159, 46))
-                                when (eventosPorDia[dia]?.firstOrNull()?.tipo) {
-                                    TipoEventoCalendario.INGRESO -> {
-                                        semana.setViewVisibility(puntoId, android.view.View.VISIBLE)
-                                        semana.setTextViewText(puntoId, "•")
-                                        semana.setTextColor(puntoId, Color.rgb(88, 190, 112))
-                                    }
-                                    TipoEventoCalendario.PAGO -> {
-                                        semana.setViewVisibility(puntoId, android.view.View.VISIBLE)
-                                        semana.setTextViewText(puntoId, "•")
-                                        semana.setTextColor(puntoId, Color.rgb(234, 77, 155))
-                                    }
-                                    TipoEventoCalendario.CORTE -> {
-                                        semana.setViewVisibility(puntoId, android.view.View.VISIBLE)
-                                        semana.setTextViewText(puntoId, "•")
-                                        semana.setTextColor(puntoId, Color.rgb(177, 117, 255))
-                                    }
-                                    null -> semana.setViewVisibility(puntoId, android.view.View.INVISIBLE)
+                                val evento = eventosPorDia[dia]?.firstOrNull()
+                                if (evento != null) {
+                                    semana.setViewVisibility(puntoId, android.view.View.VISIBLE)
+                                    semana.setTextViewText(puntoId, "•")
+                                    semana.setTextColor(puntoId, VisualConceptoCalendario.colorArgb(evento))
+                                } else {
+                                    semana.setViewVisibility(puntoId, android.view.View.INVISIBLE)
                                 }
                             } else {
                                 semana.setTextViewText(textoId, "")
@@ -193,9 +184,10 @@ class CalendarioWidgetProvider : AppWidgetProvider() {
                             TipoEventoCalendario.PAGO -> "−"
                             TipoEventoCalendario.CORTE -> "•"
                         }
-                        "$fecha  $marca ${siguiente.concepto}"
+                        "${VisualConceptoCalendario.icono(siguiente.concepto)}  $fecha  $marca ${siguiente.concepto}"
                     }
                     views.setTextViewText(R.id.widget_upcoming, texto)
+                    siguiente?.let { views.setTextColor(R.id.widget_upcoming, VisualConceptoCalendario.colorArgb(it)) }
                     manager.updateAppWidget(widgetId, views)
                 } catch (error: Exception) {
                     views.setTextViewText(R.id.widget_upcoming, "Abre NEXO para actualizar el calendario")

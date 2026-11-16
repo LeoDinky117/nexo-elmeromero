@@ -144,7 +144,7 @@ fun AppNavigation(sessionManager: SessionManager) {
         }
 
         composable(Routes.METAS){
-            MetasScreen(navController,  viewModel = metasVM)
+            MetasScreen(navController, viewModel = metasVM, movimientosViewModel = movimientosVM)
 
         }
 

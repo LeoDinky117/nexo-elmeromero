@@ -28,6 +28,7 @@ fun InputField(
     keyboardType: KeyboardType = KeyboardType.Text,
     leadingText: String? = null,
     formatDate: Boolean = false,
+    containerColor: Color = Color.White.copy(alpha = 0.08f),
     onValueChange: (String) -> Unit
 ) {
     // Conserva el texto y la selección del cursor entre recomposiciones.
@@ -49,7 +50,7 @@ fun InputField(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                Color.White.copy(alpha = 0.08f),
+                containerColor,
                 RoundedCornerShape(20.dp)
             )
             .padding(horizontal = 16.dp, vertical = 14.dp)

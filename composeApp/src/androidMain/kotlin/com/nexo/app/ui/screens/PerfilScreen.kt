@@ -7,14 +7,23 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +39,7 @@ import com.nexo.app.ui.viewModel.PerfilViewModel
 import com.nexo.app.model.Recompensa
 import com.nexo.app.ui.LocalNexoPalette
 import com.nexo.app.ui.components.NexoPullToRefresh
+import com.nexo.app.ui.components.RewardVisual
 
 @Composable
 fun PerfilScreen(
@@ -42,11 +52,17 @@ fun PerfilScreen(
     val tienda by viewModel.tienda.collectAsState()
     val tiendaCargando by viewModel.tiendaCargando.collectAsState()
     val accionRecompensaEnCurso by viewModel.accionRecompensaEnCurso.collectAsState()
+    val guardandoPerfil by viewModel.guardandoPerfil.collectAsState()
     val paleta = LocalNexoPalette.current
     val context = LocalContext.current
+    var campoEditado by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.recargarPerfil()
+    }
+
+    LaunchedEffect(viewModel.modoEdicion) {
+        if (!viewModel.modoEdicion) campoEditado = null
     }
 
 
@@ -89,9 +105,15 @@ fun PerfilScreen(
                         .background(paleta.surface, RoundedCornerShape(20.dp))
                         .padding(20.dp)
                 ) {
-                    tienda?.iconoVisualActivo?.let { Text(it, fontSize = 36.sp, modifier = Modifier.padding(bottom = 12.dp)) }
-                    ItemPerfil("Nombre", perfil!!.nombre)
-                    ItemPerfil("Correo", perfil!!.correo)
+                    tienda?.iconoVisualActivo?.let { RewardVisual(it, modifier = Modifier.size(48.dp).padding(bottom = 12.dp), emojiFontSize = 36.sp) }
+                    ItemPerfilEditable("Nombre", perfil!!.nombre, onEditar = {
+                        viewModel.iniciarEdicion()
+                        campoEditado = "nombre"
+                    })
+                    ItemPerfilEditable("Correo", perfil!!.correo, onEditar = {
+                        viewModel.iniciarEdicion()
+                        campoEditado = "correo"
+                    })
                     ItemPerfil("Edad", perfil!!.edad.toString())
                     ItemPerfil("Puntos", perfil!!.puntos.toString())
                     ItemPerfil("Fecha de registro", perfil!!.fechaRegistro)
@@ -142,6 +164,41 @@ fun PerfilScreen(
         }
     }
 
+    campoEditado?.let { campo ->
+        val esCorreo = campo == "correo"
+        AlertDialog(
+            onDismissRequest = { if (!guardandoPerfil) { campoEditado = null; viewModel.cancelarEdicion() } },
+            title = { Text(if (esCorreo) "Editar correo" else "Editar nombre") },
+            text = {
+                OutlinedTextField(
+                    value = if (esCorreo) viewModel.correoEditado else viewModel.nombreEditado,
+                    onValueChange = if (esCorreo) viewModel::cambiarCorreo else viewModel::cambiarNombre,
+                    label = { Text(if (esCorreo) "Correo electrónico" else "Nombre") },
+                    singleLine = true,
+                    keyboardOptions = if (esCorreo) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Email) else androidx.compose.foundation.text.KeyboardOptions.Default,
+                    colors = TextFieldDefaults.colors(
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedContainerColor = paleta.background, unfocusedContainerColor = paleta.background,
+                        focusedIndicatorColor = paleta.accent, unfocusedIndicatorColor = paleta.accent.copy(alpha = .5f),
+                        focusedLabelColor = paleta.accent, unfocusedLabelColor = Color.White.copy(alpha = .7f)
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = viewModel::guardarPerfil, enabled = !guardandoPerfil,
+                    colors = ButtonDefaults.buttonColors(containerColor = paleta.accent)) {
+                    Text(if (guardandoPerfil) "Guardando…" else "Guardar", color = Color(0xFF111A27))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { campoEditado = null; viewModel.cancelarEdicion() }, enabled = !guardandoPerfil) { Text("Cancelar") }
+            },
+            containerColor = paleta.surface,
+            titleContentColor = Color.White,
+            textContentColor = Color.White
+        )
+    }
+
 }
 
 @Composable
@@ -151,6 +208,21 @@ private fun ItemPerfil(titulo: String, valor: String) {
         Text(text = titulo, color = paleta.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = valor, color = Color.White, fontSize = 17.sp)
+    }
+}
+
+@Composable
+private fun ItemPerfilEditable(titulo: String, valor: String, onEditar: () -> Unit) {
+    val paleta = LocalNexoPalette.current
+    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(titulo, color = paleta.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            Text(valor, color = Color.White, fontSize = 17.sp)
+        }
+        IconButton(onClick = onEditar) {
+            Text("✎", color = paleta.highlight, fontSize = 22.sp)
+        }
     }
 }
 
@@ -173,7 +245,7 @@ private fun RecompensaPerfilCard(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (premio.tipo == "ICONO") {
-            Text(premio.valorVisual, fontSize = 30.sp, modifier = Modifier.padding(end = 12.dp))
+            RewardVisual(premio.valorVisual, modifier = Modifier.size(44.dp).padding(end = 10.dp), emojiFontSize = 30.sp)
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(end = 12.dp)) {
                 coloresTema.take(4).forEach { color ->

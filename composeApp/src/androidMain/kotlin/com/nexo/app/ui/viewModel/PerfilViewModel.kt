@@ -2,8 +2,12 @@ package com.nexo.app.ui.viewModel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.nexo.app.data.local.SessionManager
 import com.nexo.app.model.PerfilUsuario
+import com.nexo.app.model.PerfilEditable
 import com.nexo.app.model.EstadoRecompensas
 import com.nexo.app.model.SeleccionRecompensa
 import com.nexo.app.util.ApiConfig
@@ -11,6 +15,7 @@ import com.nexo.app.util.client
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -49,6 +54,15 @@ class PerfilViewModel(private val sessionManager: SessionManager) : ViewModel() 
     private val _accionRecompensaEnCurso = MutableStateFlow(false)
     val accionRecompensaEnCurso: StateFlow<Boolean> = _accionRecompensaEnCurso
 
+    var modoEdicion by mutableStateOf(false)
+        private set
+    var nombreEditado by mutableStateOf("")
+        private set
+    var correoEditado by mutableStateOf("")
+        private set
+    private val _guardandoPerfil = MutableStateFlow(false)
+    val guardandoPerfil: StateFlow<Boolean> = _guardandoPerfil
+
     init {
         viewModelScope.launch {
             sessionManager.userIdFlow.collectLatest { id ->
@@ -70,6 +84,53 @@ class PerfilViewModel(private val sessionManager: SessionManager) : ViewModel() 
 
     fun mensajeMostrado() {
         _mensajeUI.value = null
+    }
+
+    fun iniciarEdicion() {
+        val actual = _perfil.value ?: return
+        nombreEditado = actual.nombre
+        correoEditado = actual.correo
+        modoEdicion = true
+    }
+
+    fun cambiarNombre(value: String) { nombreEditado = value }
+    fun cambiarCorreo(value: String) { correoEditado = value }
+    fun cancelarEdicion() { modoEdicion = false }
+
+    fun guardarPerfil() = viewModelScope.launch {
+        val nombre = nombreEditado.trim()
+        val correo = correoEditado.trim().lowercase()
+        if (nombre.isBlank() || nombre.length > 100) {
+            _mensajeUI.value = "El nombre debe tener entre 1 y 100 caracteres."
+            return@launch
+        }
+        if (!Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(correo) || correo.length > 100) {
+            _mensajeUI.value = "Escribe un correo electrónico válido."
+            return@launch
+        }
+        if (userIdReal <= 0 || _guardandoPerfil.value) return@launch
+        _guardandoPerfil.value = true
+        try {
+            val respuesta = client.put("${ApiConfig.PERFIL_URL}/usuario/$userIdReal") {
+                contentType(ContentType.Application.Json)
+                setBody(PerfilEditable(nombre, correo))
+            }
+            if (respuesta.status == HttpStatusCode.OK) {
+                _perfil.value = _perfil.value?.copy(nombre = nombre, correo = correo)
+                modoEdicion = false
+                _mensajeUI.value = "Perfil actualizado."
+            } else {
+                val detalle = respuesta.bodyAsText()
+                val mensaje = runCatching {
+                    Json.parseToJsonElement(detalle).jsonObject["mensaje"]?.jsonPrimitive?.contentOrNull
+                }.getOrNull()
+                _mensajeUI.value = mensaje ?: "No se pudo actualizar el perfil."
+            }
+        } catch (e: Exception) {
+            _mensajeUI.value = "No se pudo actualizar el perfil. Revisa tu conexión."
+        } finally {
+            _guardandoPerfil.value = false
+        }
     }
 
     fun cargarPerfil(idUsuario: Int): Job = viewModelScope.launch {

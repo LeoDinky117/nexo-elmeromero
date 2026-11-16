@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.nexo.app.data.local.SessionManager
+import com.nexo.app.model.AportacionMeta
 import com.nexo.app.model.MetaAhorro
 import com.nexo.app.model.ProgresoMetaVista
 import com.nexo.app.util.ApiConfig
@@ -50,6 +51,9 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
 
     private val _mensajeUI = MutableStateFlow<String?>(null)
     val mensajeUI: StateFlow<String?> = _mensajeUI
+
+    private val _abonoGuardando = MutableStateFlow(false)
+    val abonoGuardando: StateFlow<Boolean> = _abonoGuardando
 
     fun onNombreMetaChange(value: String) { nombreMeta = value }
     // Conserva los dígitos y permite un solo punto decimal con hasta dos decimales.
@@ -103,6 +107,39 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
 
     fun refrescarMetas(): Job = viewModelScope.launch {
         if (userIdReal > 0) cargarMetas(userIdReal).join()
+    }
+
+    fun registrarAbono(idMeta: Int, montoTexto: String, registrarSalida: suspend (String, Double) -> Boolean) = viewModelScope.launch {
+        val monto = montoTexto.trim().replace(',', '.').toDoubleOrNull()
+        if (userIdReal <= 0) {
+            _mensajeUI.value = "Tu sesión no está disponible."
+            return@launch
+        }
+        if (monto == null || !monto.isFinite() || monto <= 0.0) {
+            _mensajeUI.value = "Escribe un monto válido mayor que cero."
+            return@launch
+        }
+        if (_abonoGuardando.value) return@launch
+        _abonoGuardando.value = true
+        try {
+            val response = client.post("${ApiConfig.METAS_URL}/$idMeta/abonos") {
+                contentType(ContentType.Application.Json)
+                setBody(AportacionMeta(idUsuario = userIdReal, montoAhorrado = monto))
+            }
+            if (response.status == HttpStatusCode.Created) {
+                val meta = _metas.value.firstOrNull { it.idMeta == idMeta }
+                val salidaRegistrada = registrarSalida("Abono a meta: ${meta?.nombreMeta ?: "ahorro"}", monto)
+                _mensajeUI.value = if (salidaRegistrada) "Abono guardado y descontado del saldo. ¡Buen avance!"
+                    else "El abono quedó guardado, pero no se pudo descontar del saldo. Revisa tu conexión."
+                cargarMetas(userIdReal).join()
+            } else {
+                _mensajeUI.value = "No se pudo guardar. Revisa el monto que falta para completar la meta."
+            }
+        } catch (e: Exception) {
+            _mensajeUI.value = "No se pudo guardar el abono. Revisa tu conexión."
+        } finally {
+            _abonoGuardando.value = false
+        }
     }
 
     fun registrarMeta() {

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>NEXO · Administración</title>
+  <link rel="stylesheet" href="/admin/style.css">
+  <script src="/admin/app.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#page-title">Saltar al contenido</a>
+<main id="login-view" class="login-layout">
+  <section class="welcome">
+    <a class="brand" href="/admin/">✦ <span>NEXO</span><small>ADMIN</small></a>
+    <p class="eyebrow">CADA PEQUEÑO PASO CUENTA</p>
+    <h1>Un espacio para<br> hacer crecer<br><em>la constancia.</em></h1>
+    <p>Cuida la experiencia de tu comunidad.<br>Crea premios que celebren su progreso.</p>
+    <div class="orbit" aria-hidden="true"><span>✦</span><i>◆</i><b>★</b></div>
+    <footer>Control de NEXO · Acceso reservado</footer>
+  </section>
+  <section class="login-side">
+    <form id="login-form" class="login-card">
+      <span class="tag">PANEL DE ADMINISTRACIÓN</span>
+      <h2>Qué bueno verte.</h2>
+      <p class="muted">Ingresa la clave administrativa configurada en el servidor.</p>
+      <label>Clave administrativa<input name="clave" type="password" autocomplete="current-password" required minlength="32"></label>
+      <button class="primary" type="submit">Entrar al panel <span>→</span></button>
+      <p id="login-error" class="error" role="alert"></p>
+      <p class="note">Esta clave no se guarda en el navegador. El servidor crea una sesión temporal y privada.</p>
+    </form>
+  </section>
+</main>
+
+<div id="panel-view" class="shell" hidden>
+  <aside>
+    <a class="brand" href="/admin/">✦ <span>NEXO</span><small>ADMIN</small></a>
+    <p class="nav-caption">ESPACIO DE TRABAJO</p>
+    <nav aria-label="Administración">
+      <button data-page="resumen" class="nav active">◫ <span>Vista general</span></button>
+      <button data-page="premios" class="nav">✦ <span>Premios</span></button>
+    </nav>
+    <div class="aside-bottom"><span class="status-dot"></span> Administración de NEXO<p>Los premios publicados aparecen en la app.</p><button id="logout" class="secondary">Cerrar sesión ↗</button></div>
+  </aside>
+  <main class="workspace">
+    <header><div><p class="eyebrow">TU COMUNIDAD, PASO A PASO</p><h1 id="page-title" tabindex="-1">Vista general</h1></div><button id="refresh" class="secondary">↻ Actualizar</button></header>
+    <div class="connection-strip"><span id="data-status" role="status">Sin consulta reciente</span><span>Solo administradores autorizados</span></div>
+    <p id="notice" role="status" aria-live="polite"></p><p id="panel-error" class="error" role="alert"></p>
+    <section id="resumen-page">
+      <div class="hero"><div><span class="tag">CONSTANCIA CON PROPÓSITO</span><h2>Pequeños hábitos.<br>Grandes avances.</h2><p>Consulta el crecimiento de la comunidad y de sus recompensas.</p><button id="hero-create" class="primary">Crear un premio <span>＋</span></button></div><div class="hero-mark" aria-hidden="true">✦</div></div>
+      <div id="metrics" class="metrics" aria-live="polite"></div>
+      <h2 class="metrics-title">Actividad de la comunidad</h2>
+      <div id="community-metrics" class="metrics" aria-live="polite"></div>
+      <div class="overview-grid">
+        <section class="card"><p class="eyebrow">CRECIMIENTO</p><h2>Registros por mes</h2><div id="monthly-signups" class="monthly-chart" aria-live="polite"></div></section>
+      </div>
+      <section class="card"><p class="eyebrow">UNA EXPERIENCIA JUSTA</p><h2>Reconocer, sin presionar.</h2><p>Los puntos se obtienen al registrar movimientos. Los premios permiten personalizar temas e iconos dentro de NEXO.</p><div class="tip">✓ Los datos mostrados aquí son métricas agregadas; no se muestran correos, contraseñas ni movimientos personales.</div></section>
+    </section>
+    <section id="premios-page" hidden>
+      <div class="section-heading"><div><h2>Catálogo de premios</h2><p class="muted">Temas e iconos disponibles para canjear en la app.</p></div><button id="create" class="primary">＋ Nuevo premio</button></div>
+      <div class="filters"><label class="search-label"><span class="sr-only">Buscar premios</span><input id="search" type="search" placeholder="Buscar un premio…"></label><span id="count" class="muted" role="status"></span></div>
+      <div id="catalog" class="prize-grid" aria-live="polite"></div>
+    </section>
+    <footer class="workspace-footer">NEXO · Panel de administración <span id="updated"></span></footer>
+  </main>
+</div>
+
+<dialog id="editor" aria-labelledby="editor-title">
+  <form id="reward-form">
+    <div class="section-heading"><h2 id="editor-title">Nuevo premio</h2><button id="close-editor" class="icon-button" type="button" aria-label="Cerrar formulario">×</button></div>
+    <p class="muted">El premio se agregará al catálogo de la aplicación.</p>
+    <label>Tipo<select id="reward-type"><option value="ICONO">Icono de perfil</option><option value="TEMA">Paleta de colores</option></select></label>
+    <label>Código único<input id="reward-code" required maxlength="48" pattern="[a-z][a-z0-9_]{1,47}" placeholder="ej. icono_gato"><small>Minúsculas, números y guion bajo; inicia con una letra.</small></label>
+    <label>Nombre<input id="reward-name" required maxlength="80" placeholder="Ej. Gato ahorrador"></label>
+    <label>Descripción<textarea id="reward-description" maxlength="255" rows="2" placeholder="Describe brevemente el premio"></textarea></label>
+    <label>Costo en puntos<input id="reward-cost" type="number" min="0" max="100000" step="1" required value="100"></label>
+    <label id="visual-label">Icono o emoji<input id="reward-visual" required maxlength="12" placeholder="Ej. 🐱"><small id="visual-help">Usa un emoji o símbolo de hasta 12 caracteres.</small></label>
+    <label id="image-label" hidden>Importar icono<input id="reward-image" type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"><small>PNG, JPG/JPEG o WebP. Máximo 2 MB. Se guarda como imagen del premio.</small></label>
+    <fieldset id="theme-picker" hidden>
+      <legend>Elige los cuatro colores de tu tema</legend>
+      <label>Acento<input id="theme-color-1" type="color" value="#35C6C8"></label>
+      <label>Fondo<input id="theme-color-2" type="color" value="#071820"></label>
+      <label>Tarjetas<input id="theme-color-3" type="color" value="#102A35"></label>
+      <label>Resalte<input id="theme-color-4" type="color" value="#75E0D3"></label>
+      <small>Selecciona cada muestra; los códigos se completan solos.</small>
+    </fieldset>
+    <section class="reward-preview" aria-label="Vista previa del premio"><span class="eyebrow">VISTA PREVIA</span><div id="reward-preview"></div></section>
+    <p id="save-error" class="error" role="alert"></p>
+    <div class="dialog-actions"><button id="cancel-editor" class="secondary" type="button">Cancelar</button><button id="save" class="primary" type="submit">Guardar premio</button></div>
+  </form>
+</dialog>
+</body>
+</html>

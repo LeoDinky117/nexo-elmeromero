@@ -15,6 +15,10 @@ data class MetaAhorroResponse (
     val montoObjetivo: Double,
     @SerialName("FechaLimite")
     val fechaLimite: String,
+    @SerialName("FechaCreacion")
+    val fechaCreacion: String,
+    @SerialName("DiasSinAbonos")
+    val diasSinAbonos: Long,
     @SerialName("Activa")
     val activa: Boolean,
     @SerialName("TotalAhorrado")

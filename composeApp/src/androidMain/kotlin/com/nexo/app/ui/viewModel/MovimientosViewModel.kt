@@ -556,4 +556,38 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
             println("DEBUG: Validación fallida - Campos vacíos o monto 0")
         }
     }
+
+    /** Registra como gasto del libro cualquier salida originada en otra pantalla. */
+    suspend fun registrarMovimientoPresupuesto(descripcion: String, monto: Double): Boolean {
+        if (userIdReal <= 0 || !monto.isFinite() || monto <= 0.0) return false
+        if (categorias.none { it.tipo.equals("Gasto", ignoreCase = true) }) cargarCategorias().join()
+        val categoria = categorias.firstOrNull { it.tipo.equals("Gasto", ignoreCase = true) } ?: return false
+        val nuevo = Movimiento(
+            idMovimiento = 0,
+            idUsuario = userIdReal,
+            idCategoria = categoria.idCategoria,
+            monto = -monto,
+            fecha = LocalDate.now().toString(),
+            descripcion = descripcion,
+            tipo = "Gasto"
+        )
+        return try {
+            val response = client.post(ApiConfig.MOVIMIENTOS_URL) {
+                contentType(ContentType.Application.Json)
+                setBody(nuevo)
+            }
+            if (response.status == HttpStatusCode.Created || response.status == HttpStatusCode.OK) {
+                withContext(Dispatchers.Main) {
+                    listaDeMovimientos.add(0, nuevo)
+                    saldoTotal -= monto
+                    puntos += 10
+                    sessionManager.saveGamification(puntos, racha)
+                }
+                true
+            } else false
+        } catch (e: Exception) {
+            println("No se pudo registrar la salida del presupuesto: ${e.message}")
+            false
+        }
+    }
 }

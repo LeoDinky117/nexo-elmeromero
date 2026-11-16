@@ -17,3 +17,9 @@ data class ProgresoMetas(
     @SerialName("IdUsuario")
     val idUsuario: Int
 )
+
+@Serializable
+data class AportacionMeta(
+    @SerialName("IdUsuario") val idUsuario: Int,
+    @SerialName("MontoAhorrado") val montoAhorrado: Double
+)
