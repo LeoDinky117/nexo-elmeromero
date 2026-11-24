@@ -36,9 +36,13 @@ class LoginViewModel(private val sessionManager: SessionManager) : ViewModel() {
     //Estado para manejar el exito del login
     private val _loginExitoso = MutableStateFlow(false)
     val loginExitoso: MutableStateFlow<Boolean> = _loginExitoso
+    private val _requiereGuia = MutableStateFlow(false)
+    val requiereGuia: StateFlow<Boolean> = _requiereGuia
     //Estado para controlar el indicador de carga
     private val _cargando = MutableStateFlow(false)
     val cargando : StateFlow<Boolean> = _cargando
+    private val _errorMensaje = MutableStateFlow<String?>(null)
+    val errorMensaje: StateFlow<String?> = _errorMensaje
 
     private val client = HttpClient(OkHttp) {
         install(ContentNegotiation) {json(Json{ignoreUnknownKeys = true})}
@@ -53,12 +57,17 @@ class LoginViewModel(private val sessionManager: SessionManager) : ViewModel() {
     }
     fun resetLoginState() {
         _loginExitoso.value = false
+        _requiereGuia.value = false
+        _errorMensaje.value = null
     }
+    fun limpiarError() { _errorMensaje.value = null }
     fun login() {
         if (correo.isEmpty() || password.isEmpty()) {
-            println("Campos vacíos")
+            _errorMensaje.value = "Escribe tu correo y contraseña para continuar."
             return
         }
+        if (_cargando.value) return
+        _errorMensaje.value = null
         viewModelScope.launch{
             _cargando.value = true
             try {
@@ -76,6 +85,7 @@ class LoginViewModel(private val sessionManager: SessionManager) : ViewModel() {
                     if(id > 0) {
                         sessionManager.saveUserId(id)
                         sessionManager.saveGamification(usuarioResponse.puntos, usuarioResponse.racha)
+                        _requiereGuia.value = sessionManager.shouldShowOnboarding(correo, id)
                         runCatching {
                             val estadoPremios: EstadoRecompensas = client.get("${ApiConfig.RECOMPENSAS_URL}/usuario/$id").body()
                             sessionManager.saveGamification(estadoPremios.puntos, usuarioResponse.racha)
@@ -91,12 +101,20 @@ class LoginViewModel(private val sessionManager: SessionManager) : ViewModel() {
                 }else{
                     _loginExitoso.value = false //Estado de error en login
                     println("Credenciales Incorrectas (Status: ${respuesta.status})")
+                    _errorMensaje.value = if (respuesta.status == HttpStatusCode.Unauthorized) {
+                        "El correo o la contraseña no son correctos."
+                    } else {
+                        "No se pudo iniciar sesión. Inténtalo de nuevo."
+                    }
                 }
+            }catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             }catch(e: Exception){
                 //println("Error de red: ${e.localizedMessage}")
                 println("Error: ${e.message}")
                 e.printStackTrace()//Esto imprime toda la ruta del error en rojo
                 _loginExitoso.value = false
+                _errorMensaje.value = "No se pudo conectar con Nexo. Revisa tu conexión e inténtalo de nuevo."
             }finally {
                 _cargando.value = false
             }

@@ -11,6 +11,7 @@ import com.nexo.app.data.local.SessionManager
 import com.nexo.app.model.Movimiento
 import com.nexo.app.model.MovimientoBorrador
 import com.nexo.app.model.CategoriaFinanciera
+import com.nexo.app.model.PagoMetaMovimientoRequest
 import com.nexo.app.util.ApiConfig
 import com.nexo.app.util.BorradoresNotificacion
 import com.nexo.app.widgets.MovimientoWidgetProvider
@@ -54,6 +55,8 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
     var categoriaSeleccionada by mutableStateOf("")
         private set
     var esIngresoInput by mutableStateOf(false)
+        private set
+    var esPagoInput by mutableStateOf(false)
         private set
     var saldoTotal by mutableStateOf(0.0)
         private set
@@ -102,7 +105,7 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
         viewModelScope.launch {
             //Leemos el ID desde el SessionManager(DataSource)
             sessionManager.userIdFlow.collect { id ->
-                if (id!= 0){
+                if (id > 0){
                     userIdReal = id
                     println("DEBUG: ID de usuario recuperado en Movimientos: $userIdReal")
                     cargarDatosDelServidor()
@@ -114,7 +117,16 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
                     if (borradoresPendientes.isNotEmpty()) {
                         BorradoresNotificacion.programarRecordatorio(sessionManager.applicationContext, id)
                     }
-
+                } else {
+                    userIdReal = 0
+                    listaDeMovimientos.clear()
+                    borradoresPendientes.clear()
+                    categorias = emptyList()
+                    categoriaSeleccionada = ""
+                    categoriaIdSeleccionada = 0
+                    saldoTotal = 0.0
+                    puntos = 0
+                    racha = 0
                 }
             }
         }
@@ -164,6 +176,7 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
             return viewModelScope.launch { }
         }
         return viewModelScope.launch(Dispatchers.IO) {
+            val idSolicitud = userIdReal
             _cargando.value = true
             println("DEBUG: [PASO 2] Lanzando petición a: ${ApiConfig.MOVIMIENTOS_URL}/$userIdReal  ")
             try {
@@ -176,12 +189,13 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
                 if (respuesta.status == HttpStatusCode.OK) {
                     val movimientosRemotos: List<Movimiento> = respuesta.body<List<Movimiento>>()
                     println("DEBUG: [PASO4] Movimientos parseados: ${movimientosRemotos.size} items")
+                    if (userIdReal != idSolicitud || idSolicitud <= 0) return@launch
 
 
                     // Limpiamos la lista actual y agregamos los de la base de datos
                     withContext(Dispatchers.Main) {
                         listaDeMovimientos.clear()
-                        listaDeMovimientos.addAll(movimientosRemotos)
+                    listaDeMovimientos.addAll(movimientosRemotos.sortedByDescending { it.idMovimiento })
 
 
                         saldoTotal = movimientosRemotos.sumOf { it.monto }
@@ -233,6 +247,18 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
             categoriaIdSeleccionada = 0
         }
         esIngresoInput = valor
+        esPagoInput = false
+    }
+    fun onTipoMovimientoChange(tipo: String) {
+        val nuevoIngreso = tipo == "Ingreso"
+        val nuevoPago = tipo == "Pago"
+        if (esIngresoInput != nuevoIngreso || esPagoInput != nuevoPago) {
+            categoriaSeleccionada = ""
+            categoriaIdSeleccionada = 0
+        }
+        esIngresoInput = nuevoIngreso
+        esPagoInput = nuevoPago
+        cargarCategorias(if (nuevoIngreso) "Ingreso" else "Gasto")
     }
     fun onFechaChange(valor: String) { fechaInput = valor }
 
@@ -251,8 +277,13 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
             indicaGasto -> "Gasto"
             else -> null
         }
-        if (indicaIngreso) esIngresoInput = true
-        else if (indicaGasto) esIngresoInput = false
+        if (indicaIngreso) {
+            esIngresoInput = true
+            esPagoInput = false
+        } else if (indicaGasto) {
+            esIngresoInput = false
+            esPagoInput = false
+        }
 
         val cantidadRegex = Regex("(?<![\\w])(?:\\d{1,3}(?:[.,]\\d{3})+(?:[.,]\\d{1,2})?|\\d+(?:[.,]\\d{1,2})?)(?![\\w])")
         val cantidadMatch = cantidadRegex.find(normalizado)
@@ -494,6 +525,9 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
         idCategoria = 0
         categoriaSeleccionada = ""
         categoriaIdSeleccionada = 0
+        esIngresoInput = false
+        esPagoInput = false
+        fechaInput = LocalDate.now().toString()
     }
 
     //Funcion para registrar
@@ -518,7 +552,7 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
                 monto = montoFinal,
                 fecha = fechaInput, // Ya viene como "yyyy-MM-dd"
                 descripcion = descripcionInput,
-                tipo = if(esIngresoInput) "Ingreso" else "Gasto"
+                tipo = if (esIngresoInput) "Ingreso" else if (esPagoInput) "Pago" else "Gasto"
             )
 
             // Iniciamos la petición al servidor
@@ -533,12 +567,10 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
                     println("DEBUG: Respuesta Servidor Movimiento: ${respuesta.status}")
 
                     if (respuesta.status == HttpStatusCode.Created || respuesta.status == HttpStatusCode.OK) {
-                        // Solo si el servidor confirma, actualizamos la lista visual
-                        listaDeMovimientos.add(0, nuevo)
-                        //Se actualiza el saldo
-                        saldoTotal += montoFinal
                         puntos += 10
                         sessionManager.saveGamification(puntos, racha)
+                        // La respuesta de la base de datos define el orden real por ID descendente.
+                        cargarDatosDelServidor().join()
 
                         // Limpiar campos
                         resetFormulario()
@@ -587,6 +619,74 @@ class MovimientosViewModel(private val sessionManager: SessionManager) : ViewMod
             } else false
         } catch (e: Exception) {
             println("No se pudo registrar la salida del presupuesto: ${e.message}")
+            false
+        }
+    }
+
+    /** Registra un pago a una meta y su salida de dinero dentro de una única transacción del servidor. */
+    suspend fun registrarPagoMeta(
+        idMeta: Int,
+        monto: Double,
+        fecha: String,
+        descripcion: String,
+        idCategoria: Int
+    ): Boolean {
+        if (userIdReal <= 0 || idMeta <= 0 || idCategoria <= 0 || !monto.isFinite() || monto <= 0.0) return false
+        return try {
+            val response = client.post("${ApiConfig.METAS_URL}/$idMeta/pagos") {
+                contentType(ContentType.Application.Json)
+                setBody(
+                    PagoMetaMovimientoRequest(
+                        idUsuario = userIdReal,
+                        idCategoria = idCategoria,
+                        monto = monto,
+                        fecha = fecha,
+                        descripcion = descripcion
+                    )
+                )
+            }
+            if (response.status == HttpStatusCode.Created || response.status == HttpStatusCode.OK) {
+                puntos += 10
+                sessionManager.saveGamification(puntos, racha)
+                cargarDatosDelServidor().join()
+                true
+            } else false
+        } catch (e: Exception) {
+            println("No se pudo registrar el pago a la meta: ${e.message}")
+            false
+        }
+    }
+
+    /** Registra un egreso de tipo Pago; el saldo de la deuda local se actualiza al confirmar el éxito. */
+    suspend fun registrarPagoDeuda(
+        descripcion: String,
+        monto: Double,
+        fecha: String,
+        idCategoria: Int
+    ): Boolean {
+        if (userIdReal <= 0 || idCategoria <= 0 || !monto.isFinite() || monto <= 0.0) return false
+        val movimiento = Movimiento(
+            idMovimiento = 0,
+            idUsuario = userIdReal,
+            idCategoria = idCategoria,
+            monto = -monto,
+            fecha = fecha,
+            descripcion = descripcion,
+            tipo = "Pago"
+        )
+        return try {
+            val response = client.post(ApiConfig.MOVIMIENTOS_URL) {
+                contentType(ContentType.Application.Json)
+                setBody(movimiento)
+            }
+            if (response.status == HttpStatusCode.Created || response.status == HttpStatusCode.OK) {
+                puntos += 10
+                sessionManager.saveGamification(puntos, racha)
+                cargarDatosDelServidor().join()
+                true
+            } else false
+        } catch (e: Exception) {
+            println("No se pudo registrar el pago de la deuda: ${e.message}")
             false
         }
     }

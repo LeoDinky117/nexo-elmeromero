@@ -137,7 +137,11 @@ fun Application.configureRouting() {
                     println("DEGUB: Credenciales incorrectas")
                     call.respond(HttpStatusCode.Unauthorized, "Correo o Contraseña incorrectos")
                 }
-            }catch (e: Exception){
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Las solicitudes pueden cancelarse si el cliente se desconecta o el servidor se reinicia.
+                // No convertir una cancelación del ciclo de vida de la petición en un HTTP 500.
+                throw e
+            } catch (e: Exception) {
                 println("ERROR CRÍTICO EN LOGIN: ${e.localizedMessage}")
                 e.printStackTrace()
                 call.respond(HttpStatusCode.InternalServerError, "Error interno: ${e.message}")
@@ -210,6 +214,78 @@ fun Application.configureRouting() {
                 }
             }
 
+            // Aporta a una meta y registra la salida del saldo dentro de la misma transacción.
+            post("/metas/{idMeta}/pagos") {
+                val idMeta = call.parameters["idMeta"]?.toIntOrNull()
+                if (idMeta == null) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to "Meta no válida."))
+                    return@post
+                }
+                try {
+                    val solicitud = call.receive<com.example.com.nexo.app.model.PagoMetaMovimientoRequest>()
+                    require(solicitud.idUsuario > 0 && solicitud.idCategoria > 0 && solicitud.monto.isFinite() && solicitud.monto > 0.0) {
+                        "Revisa el usuario, categoría y monto del pago."
+                    }
+                    val fechaPago = java.time.LocalDate.parse(solicitud.fecha)
+                    val idMovimiento = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                        val meta = MetasAhorro.selectAll()
+                            .where { (MetasAhorro.idMeta eq idMeta) and (MetasAhorro.idUsuario eq solicitud.idUsuario) }
+                            .singleOrNull() ?: throw NoSuchElementException()
+                        require(meta[MetasAhorro.activa]) { "Solo puedes pagar a metas activas." }
+
+                        val categoriaValida = CategoriasFinancieras.selectAll()
+                            .where {
+                                (CategoriasFinancieras.id eq solicitud.idCategoria) and
+                                    (CategoriasFinancieras.tipo eq "Gasto")
+                            }
+                            .singleOrNull() != null
+                        require(categoriaValida) { "Selecciona una categoría de gasto válida." }
+
+                        val totalActual = ProgresoMetas.selectAll()
+                            .where { (ProgresoMetas.idMeta eq idMeta) and (ProgresoMetas.idUsuario eq solicitud.idUsuario) }
+                            .sumOf { it[ProgresoMetas.montoAhorrado].toDouble() }
+                        val objetivo = meta[MetasAhorro.montoObjetivo].toDouble()
+                        require(solicitud.monto <= objetivo - totalActual + 0.000001) {
+                            "El pago supera lo que falta para completar esta meta."
+                        }
+
+                        ProgresoMetas.insert {
+                            it[ProgresoMetas.idMeta] = idMeta
+                            it[ProgresoMetas.idUsuario] = solicitud.idUsuario
+                            it[montoAhorrado] = solicitud.monto.toBigDecimal()
+                            it[fechaRegistro] = fechaPago
+                        }
+                        val movimientoInsertado = Movimientos.insert {
+                            it[idUsuario] = solicitud.idUsuario
+                            it[idCategoria] = solicitud.idCategoria
+                            it[monto] = (-solicitud.monto).toBigDecimal()
+                            it[tipo] = "Pago"
+                            it[fecha] = fechaPago
+                            it[descripcion] = solicitud.descripcion.take(200)
+                        }
+                        val movimientoId = movimientoInsertado[Movimientos.id]
+                        Usuarios.update({ Usuarios.id eq solicitud.idUsuario }) {
+                            it.update(puntos, puntos + 10)
+                        }
+                        if (totalActual + solicitud.monto >= objetivo - 0.000001) {
+                            MetasAhorro.update({ MetasAhorro.idMeta eq idMeta }) {
+                                it[activa] = false
+                                it[fechaCumplimiento] = java.time.LocalDateTime.now()
+                            }
+                        }
+                        movimientoId
+                    }
+                    call.respond(HttpStatusCode.Created, mapOf("IdMovimiento" to idMovimiento, "mensaje" to "Pago registrado."))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("mensaje" to (e.message ?: "Pago no válido.")))
+                } catch (_: NoSuchElementException) {
+                    call.respond(HttpStatusCode.NotFound, mapOf("mensaje" to "No encontramos esa meta activa."))
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    call.respond(HttpStatusCode.ServiceUnavailable, mapOf("mensaje" to "No se pudo registrar el pago."))
+                }
+            }
+
             // 2. ESTA ES LA QUE NECESITAMOS PARA EL SALDO (GET)
             get("/movimientos/usuario/{id}") {
                 val idParam = call.parameters["id"]?.toIntOrNull()
@@ -258,7 +334,7 @@ fun Application.configureRouting() {
                     val solicitud = call.receive<com.example.com.nexo.app.model.MetaAhorro>()
                     println("DEBUG POST /metas: usuario=${solicitud.idUsuario}, meta=${solicitud.nombreMeta}")
 
-                    newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
+                    val idMetaCreada = newSuspendedTransaction(Dispatchers.IO, DatabaseFactory.database) {
                         MetasAhorro.insert {
                             it[idUsuario] = solicitud.idUsuario
                             it[nombreMeta] = solicitud.nombreMeta
@@ -266,11 +342,11 @@ fun Application.configureRouting() {
                             it[fechaLimite] = java.time.LocalDate.parse(solicitud.fechaLimite)
                             // No se insertan IdMeta, FechaCreacion ni Activa:
                             // SQL Server genera el ID y aplica los valores predeterminados.
-                        }
+                        }[MetasAhorro.idMeta]
                     }
 
                     println("DEBUG POST /metas: respuesta 201 Created")
-                    call.respond(HttpStatusCode.Created, "Meta creada correctamente")
+                    call.respond(HttpStatusCode.Created, com.example.com.nexo.app.model.MetaCreadaResponse(idMetaCreada))
                 } catch (e: Exception) {
                     println("ERROR POST /metas: ${e.message}")
                     e.printStackTrace()
@@ -425,7 +501,7 @@ fun Application.configureRouting() {
                                     edad = it[Usuarios.edad],
                                     correo = it[Usuarios.correo],
                                     fechaRegistro = it[Usuarios.fechaRegistro]
-                                        ?.atZone(java.time.ZoneOffset.UTC)
+                                        .atZone(java.time.ZoneOffset.UTC)
                                         ?.withZoneSameInstant(java.time.ZoneId.of("America/Monterrey"))
                                         ?.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"))
                                         ?: "Sin fecha registrada",
@@ -441,6 +517,9 @@ fun Application.configureRouting() {
                         call.respond(HttpStatusCode.NotFound, "Usuario no encontrado")
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    println("ERROR GET /perfil/usuario/$idParam: ${e.message}")
+                    e.printStackTrace()
                     call.respond(HttpStatusCode.InternalServerError, "Error: ${e.message}")
                 }
             }

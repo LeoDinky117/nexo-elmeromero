@@ -20,6 +20,7 @@ object DatabaseFactory {
         Movimientos
             .selectAll()
             .where { Movimientos.idUsuario eq userId }
+            .orderBy(Movimientos.id to SortOrder.DESC)
             .map { row ->
                 Movimiento(
                     idMovimiento = row[Movimientos.id],

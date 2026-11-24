@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.nexo.app.model.Movimiento
 import com.nexo.app.ui.LocalNexoPalette
+import com.nexo.app.ui.readableForeground
 import com.nexo.app.ui.components.NexoPullToRefresh
 import com.nexo.app.ui.viewModel.MovimientosViewModel
 import nexo.composeapp.generated.resources.Res
@@ -73,8 +74,8 @@ fun GastosScreen(navController: NavController, movimientosVM: MovimientosViewMod
             ) {
                 item {
                     Column {
-                        Text("Mis movimientos", color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                        Text("Ingresos y gastos organizados por mes", color = Color(0xFFABB6C6), fontSize = 14.sp)
+                        Text("Mis movimientos", color = paleta.onBackground, fontSize = 27.sp, fontWeight = FontWeight.Bold, modifier = Modifier.objetivoGuia("movements_title"))
+                        Text("Ingresos y gastos organizados por mes", color = paleta.secondaryOnBackground, fontSize = 14.sp)
                         Spacer(Modifier.height(18.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth()
@@ -83,9 +84,9 @@ fun GastosScreen(navController: NavController, movimientosVM: MovimientosViewMod
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            ResumenImporte("Ingresos", ingresos, Color(0xFF65CF83))
+                            ResumenImporte("Ingresos", ingresos, readableForeground(Color(0xFF65CF83), paleta.surface))
                             Box(Modifier.height(36.dp).width(1.dp).background(Color(0xFF354154)))
-                            ResumenImporte("Gastos", gastos, paleta.highlight)
+                            ResumenImporte("Gastos", gastos, paleta.highlightTextOnSurface)
                         }
                         Spacer(Modifier.height(10.dp))
                     }
@@ -95,7 +96,7 @@ fun GastosScreen(navController: NavController, movimientosVM: MovimientosViewMod
                     item {
                         Text(
                             "Todavía no hay movimientos. Cuando registres uno, aparecerá aquí.",
-                            color = Color(0xFFABB6C6), modifier = Modifier.padding(vertical = 28.dp)
+                            color = paleta.secondaryOnBackground, modifier = Modifier.padding(vertical = 28.dp)
                         )
                     }
                 } else {
@@ -110,13 +111,13 @@ fun GastosScreen(navController: NavController, movimientosVM: MovimientosViewMod
                                 Text(
                                     mes.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", idioma))
                                         .replaceFirstChar { it.titlecase(idioma) },
-                                    color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold
+                                    color = paleta.onSurface, fontSize = 17.sp, fontWeight = FontWeight.Bold
                                 )
                                 val totalIngresos = movimientos.filter { it.monto > 0 }.sumOf { it.monto }
                                 val totalGastos = movimientos.filter { it.monto < 0 }.sumOf { abs(it.monto) }
                                 Text(
                                     "${movimientos.size} movimientos  ·  Entró ${dinero(totalIngresos)}  ·  Salió ${dinero(totalGastos)}",
-                                    color = Color(0xFFB8C2D1), fontSize = 11.sp
+                                    color = paleta.secondaryOnSurface, fontSize = 11.sp
                                 )
                             }
                         }
@@ -131,7 +132,7 @@ fun GastosScreen(navController: NavController, movimientosVM: MovimientosViewMod
                                 sub = categoria,
                                 fecha = fecha,
                                 monto = "${if (gasto) "−" else "+"}${dinero(abs(movimiento.monto))}",
-                                colorMonto = if (gasto) paleta.highlight else Color(0xFF65CF83),
+                                colorMonto = if (gasto) paleta.highlightTextOnSurface else readableForeground(Color(0xFF65CF83), paleta.surface),
                                 icono = when (movimiento.idCategoria) {
                                     1 -> Res.drawable.icon_trabajo
                                     2 -> Res.drawable.icon_comida
@@ -145,7 +146,7 @@ fun GastosScreen(navController: NavController, movimientosVM: MovimientosViewMod
                     }
                     if (sinFecha.isNotEmpty()) {
                         item(key = "month-no-date") {
-                            Text("Fecha no disponible", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold,
+                            Text("Fecha no disponible", color = paleta.onBackground, fontSize = 17.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(top = 14.dp, bottom = 4.dp))
                         }
                         items(sinFecha, key = { "movement-no-date-${it.idMovimiento}" }) { movimiento ->
@@ -155,7 +156,7 @@ fun GastosScreen(navController: NavController, movimientosVM: MovimientosViewMod
                                 titulo = movimiento.descripcion?.takeIf { it.isNotBlank() } ?: "Movimiento",
                                 sub = categoria,
                                 monto = "${if (gasto) "−" else "+"}${dinero(abs(movimiento.monto))}",
-                                colorMonto = if (gasto) paleta.highlight else Color(0xFF65CF83),
+                                colorMonto = if (gasto) paleta.highlightTextOnSurface else readableForeground(Color(0xFF65CF83), paleta.surface),
                                 icono = Res.drawable.icon_gastos,
                                 iconoEmoji = emojiMovimiento(categoria),
                                 fecha = movimiento.fecha

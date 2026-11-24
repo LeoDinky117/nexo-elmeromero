@@ -67,10 +67,12 @@ class PerfilViewModel(private val sessionManager: SessionManager) : ViewModel() 
         viewModelScope.launch {
             sessionManager.userIdFlow.collectLatest { id ->
                 userIdReal = id
-                if (id > 0) cargarPerfil(id)
-                else {
+                if (id <= 0) {
                     _perfil.value = null
+                    _tienda.value = null
                     _cargando.value = false
+                    _tiendaCargando.value = false
+                    _mensajeUI.value = null
                 }
             }
         }
@@ -151,6 +153,7 @@ class PerfilViewModel(private val sessionManager: SessionManager) : ViewModel() 
                     _mensajeUI.value = "No se pudieron cargar los datos del perfil (HTTP ${respuesta.status.value})."
                     return@launch
                 }
+                if (userIdReal != idUsuario) return@launch
                 _perfil.value = respuesta.body()
                 println("DEBUG ANDROID: Respuesta exitosa: ${_perfil.value?.nombre}")
                 cargarTienda(idUsuario)
@@ -167,7 +170,7 @@ class PerfilViewModel(private val sessionManager: SessionManager) : ViewModel() 
         _tiendaCargando.value = true
         try {
             val respuesta = client.get("${ApiConfig.RECOMPENSAS_URL}/usuario/$idUsuario")
-            if (respuesta.status == HttpStatusCode.OK) {
+            if (respuesta.status == HttpStatusCode.OK && userIdReal == idUsuario) {
                 aplicarEstadoTienda(respuesta.body())
             } else {
                 _mensajeUI.value = "No se pudo cargar el catálogo de recompensas."

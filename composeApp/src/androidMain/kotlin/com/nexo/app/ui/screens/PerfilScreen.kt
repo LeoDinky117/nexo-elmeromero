@@ -44,7 +44,8 @@ import com.nexo.app.ui.components.RewardVisual
 @Composable
 fun PerfilScreen(
     navController: NavController,
-    viewModel: PerfilViewModel
+    viewModel: PerfilViewModel,
+    onCerrarSesion: () -> Unit
 ) {
     val perfil by viewModel.perfil.collectAsState()
     val cargando by viewModel.cargando.collectAsState()
@@ -56,6 +57,7 @@ fun PerfilScreen(
     val paleta = LocalNexoPalette.current
     val context = LocalContext.current
     var campoEditado by remember { mutableStateOf<String?>(null) }
+    var confirmarCerrarSesion by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.recargarPerfil()
@@ -91,7 +93,7 @@ fun PerfilScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Mi perfil", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Mi perfil", color = paleta.onBackground, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.objetivoGuia("profile_title"))
             Spacer(modifier = Modifier.height(24.dp))
 
             if (cargando) {
@@ -119,9 +121,9 @@ fun PerfilScreen(
                     ItemPerfil("Fecha de registro", perfil!!.fechaRegistro)
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("Recompensas", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text("Recompensas", color = paleta.onBackground, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
-                Text("Desbloquea temas e iconos con los puntos que ganas al registrar movimientos.", color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp)
+                Text("Desbloquea temas e iconos con los puntos que ganas al registrar movimientos.", color = paleta.secondaryOnBackground, fontSize = 14.sp)
                 Spacer(modifier = Modifier.height(12.dp))
                 Column(
                     modifier = Modifier.fillMaxWidth()
@@ -129,13 +131,13 @@ fun PerfilScreen(
                         .padding(18.dp)
                 ) {
                     Text(tienda?.let { "${it.puntosDisponibles} puntos disponibles" } ?: "Consultando saldo de puntos…", color = paleta.highlight, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("Los puntos no tienen valor monetario; canjéalos por artículos digitales.", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    Text("Los puntos no tienen valor monetario; canjéalos por artículos digitales.", color = paleta.secondaryOnSurface, fontSize = 12.sp)
                 }
                 Spacer(modifier = Modifier.height(14.dp))
                 if (tiendaCargando && tienda == null) {
                     CircularProgressIndicator(color = paleta.accent, modifier = Modifier.align(Alignment.CenterHorizontally))
                 } else if (tienda?.recompensas.isNullOrEmpty()) {
-                    Text("El catálogo no está disponible por ahora.", color = Color.White.copy(alpha = 0.7f))
+                    Text("El catálogo no está disponible por ahora.", color = paleta.secondaryOnBackground)
                 } else {
                     tienda!!.recompensas.forEach { premio ->
                         RecompensaPerfilCard(
@@ -151,7 +153,7 @@ fun PerfilScreen(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("No se pudieron mostrar los datos del perfil.", color = Color.White.copy(alpha = 0.75f))
+                    Text("No se pudieron mostrar los datos del perfil.", color = paleta.secondaryOnBackground)
                     Button(
                         onClick = viewModel::recargarPerfil,
                         colors = ButtonDefaults.buttonColors(containerColor = paleta.accent)
@@ -159,6 +161,14 @@ fun PerfilScreen(
                         Text("Volver a intentar", color = Color(0xFF111A27))
                     }
                 }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = { confirmarCerrarSesion = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = paleta.accent)
+            ) {
+                Text("Cerrar sesión", color = paleta.onAccent)
             }
         }
         }
@@ -177,25 +187,48 @@ fun PerfilScreen(
                     singleLine = true,
                     keyboardOptions = if (esCorreo) androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Email) else androidx.compose.foundation.text.KeyboardOptions.Default,
                     colors = TextFieldDefaults.colors(
-                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        focusedTextColor = paleta.onBackground, unfocusedTextColor = paleta.onBackground,
                         focusedContainerColor = paleta.background, unfocusedContainerColor = paleta.background,
                         focusedIndicatorColor = paleta.accent, unfocusedIndicatorColor = paleta.accent.copy(alpha = .5f),
-                        focusedLabelColor = paleta.accent, unfocusedLabelColor = Color.White.copy(alpha = .7f)
+                        focusedLabelColor = paleta.accentTextOnBackground, unfocusedLabelColor = paleta.secondaryOnBackground
                     )
                 )
             },
             confirmButton = {
                 Button(onClick = viewModel::guardarPerfil, enabled = !guardandoPerfil,
                     colors = ButtonDefaults.buttonColors(containerColor = paleta.accent)) {
-                    Text(if (guardandoPerfil) "Guardando…" else "Guardar", color = Color(0xFF111A27))
+                    Text(if (guardandoPerfil) "Guardando…" else "Guardar", color = paleta.onAccent)
                 }
             },
             dismissButton = {
                 OutlinedButton(onClick = { campoEditado = null; viewModel.cancelarEdicion() }, enabled = !guardandoPerfil) { Text("Cancelar") }
             },
             containerColor = paleta.surface,
-            titleContentColor = Color.White,
-            textContentColor = Color.White
+            titleContentColor = paleta.onSurface,
+            textContentColor = paleta.onSurface
+        )
+    }
+
+    if (confirmarCerrarSesion) {
+        AlertDialog(
+            onDismissRequest = { confirmarCerrarSesion = false },
+            title = { Text("¿Cerrar sesión?") },
+            text = { Text("Volverás al inicio de sesión. Tus datos guardados seguirán en tu cuenta.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmarCerrarSesion = false
+                        onCerrarSesion()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = paleta.accent)
+                ) { Text("Cerrar sesión", color = paleta.onAccent) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirmarCerrarSesion = false }) { Text("Cancelar") }
+            },
+            containerColor = paleta.surface,
+            titleContentColor = paleta.onSurface,
+            textContentColor = paleta.onSurface
         )
     }
 
@@ -205,9 +238,9 @@ fun PerfilScreen(
 private fun ItemPerfil(titulo: String, valor: String) {
     val paleta = LocalNexoPalette.current
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
-        Text(text = titulo, color = paleta.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(text = titulo, color = paleta.accentTextOnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(text = valor, color = Color.White, fontSize = 17.sp)
+        Text(text = valor, color = paleta.onSurface, fontSize = 17.sp)
     }
 }
 
@@ -216,9 +249,9 @@ private fun ItemPerfilEditable(titulo: String, valor: String, onEditar: () -> Un
     val paleta = LocalNexoPalette.current
     Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(titulo, color = paleta.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(titulo, color = paleta.accentTextOnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            Text(valor, color = Color.White, fontSize = 17.sp)
+            Text(valor, color = paleta.onSurface, fontSize = 17.sp)
         }
         IconButton(onClick = onEditar) {
             Text("✎", color = paleta.highlight, fontSize = 22.sp)
@@ -235,12 +268,13 @@ private fun RecompensaPerfilCard(
     onDesbloquear: () -> Unit,
     onEquipar: () -> Unit
 ) {
+    val paleta = LocalNexoPalette.current
     val coloresTema = if (premio.tipo == "TEMA") premio.valorVisual.split('|').mapNotNull {
         runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull()
     } else emptyList()
     Row(
         modifier = Modifier.fillMaxWidth()
-            .background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(16.dp))
+            .background(paleta.surface, RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -254,18 +288,18 @@ private fun RecompensaPerfilCard(
             }
         }
         Column(Modifier.weight(1f)) {
-            Text(premio.nombre, color = Color.White, fontWeight = FontWeight.SemiBold)
-            Text(premio.descripcion, color = Color.White.copy(alpha = 0.68f), fontSize = 12.sp)
-            Text(if (premio.desbloqueada) "Desbloqueada" else "${premio.costoPuntos} puntos", color = accent, fontSize = 12.sp)
+            Text(premio.nombre, color = paleta.onSurface, fontWeight = FontWeight.SemiBold)
+            Text(premio.descripcion, color = paleta.secondaryOnSurface, fontSize = 12.sp)
+            Text(if (premio.desbloqueada) "Desbloqueada" else "${premio.costoPuntos} puntos", color = paleta.accentTextOnSurface, fontSize = 12.sp)
         }
         when {
-            premio.equipada -> Text("En uso", color = accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            premio.equipada -> Text("En uso", color = paleta.accentTextOnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             premio.desbloqueada -> OutlinedButton(onClick = onEquipar, enabled = !ocupada) { Text("Usar") }
             else -> Button(
                 onClick = onDesbloquear,
                 enabled = !ocupada && puntos >= premio.costoPuntos,
                 colors = ButtonDefaults.buttonColors(containerColor = accent)
-            ) { Text("Canjear") }
+            ) { Text("Canjear", color = paleta.onAccent) }
         }
     }
 }

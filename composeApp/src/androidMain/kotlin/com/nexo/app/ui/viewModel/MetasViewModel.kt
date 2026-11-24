@@ -9,7 +9,10 @@ import com.nexo.app.data.local.SessionManager
 import com.nexo.app.model.AportacionMeta
 import com.nexo.app.model.MetaAhorro
 import com.nexo.app.model.ProgresoMetaVista
+import com.nexo.app.model.MetaCreadaResponse
+import com.nexo.app.model.PeriodicidadAportacionMeta
 import com.nexo.app.util.ApiConfig
+import com.nexo.app.util.RecordatoriosMetas
 import com.nexo.app.util.client
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -28,9 +31,15 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
     init {
         viewModelScope.launch {
             sessionManager.userIdFlow.collect {id ->
-                if (id != 0){
+                if (id > 0){
                     userIdReal = id
                     cargarMetas(id)
+                } else {
+                    userIdReal = 0
+                    _metas.value = emptyList()
+                    _cargando.value = false
+                    _abonoGuardando.value = false
+                    limpiarFormulario()
                 }
             }
         }
@@ -41,6 +50,8 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
     var montoObjetivo by mutableStateOf("")
         private set
     var fechaLimite by mutableStateOf("")
+        private set
+    var periodicidadAportacion by mutableStateOf(PeriodicidadAportacionMeta.SEMANAL)
         private set
 
     private val _metas = MutableStateFlow<List<ProgresoMetaVista>>(emptyList())
@@ -56,6 +67,7 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
     val abonoGuardando: StateFlow<Boolean> = _abonoGuardando
 
     fun onNombreMetaChange(value: String) { nombreMeta = value }
+    fun onPeriodicidadAportacionChange(value: PeriodicidadAportacionMeta) { periodicidadAportacion = value }
     // Conserva los dígitos y permite un solo punto decimal con hasta dos decimales.
     fun onMontoObjetivoChange(value: String) {
         val numero = value.filter { it.isDigit() || it == '.' }
@@ -91,12 +103,18 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
         nombreMeta = ""
         montoObjetivo = ""
         fechaLimite = ""
+        periodicidadAportacion = PeriodicidadAportacionMeta.SEMANAL
     }
 
     fun cargarMetas(idUsuario: Int): Job = viewModelScope.launch {
+            if (idUsuario <= 0 || idUsuario != userIdReal) return@launch
             _cargando.value = true
             try {
-                _metas.value = client.get("${ApiConfig.METAS_URL}/usuario/$idUsuario").body()
+                val recibidas: List<ProgresoMetaVista> = client.get("${ApiConfig.METAS_URL}/usuario/$idUsuario").body()
+                if (userIdReal == idUsuario) {
+                    _metas.value = recibidas
+                    RecordatoriosMetas.sincronizar(sessionManager.applicationContext, idUsuario, recibidas)
+                }
             } catch (e: Exception) {
                 _mensajeUI.value = "No se pudieron cargar las metas"
                 println("Error al cargar metas: ${e.message}")
@@ -167,6 +185,12 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
         viewModelScope.launch {
             _cargando.value = true
             try {
+                val fechaObjetivo = runCatching { java.time.LocalDate.parse(fechaLimite.trim()) }.getOrNull()
+                if (fechaObjetivo == null || !fechaObjetivo.isAfter(java.time.LocalDate.now())) {
+                    _mensajeUI.value = "Selecciona una fecha objetivo futura válida"
+                    return@launch
+                }
+
                 val nuevaMeta = MetaAhorro(
                     idUsuario = userIdReal,
                     nombreMeta = nombreMeta.trim(),
@@ -188,9 +212,18 @@ class MetasViewModel (private val sessionManager: SessionManager) : ViewModel() 
 
                 if (response.status == HttpStatusCode.Created) {
                     println("DEBUG METAS: guardado confirmado por el servidor")
+                    val metaCreada = response.body<MetaCreadaResponse>()
+                    RecordatoriosMetas.programar(
+                        context = sessionManager.applicationContext,
+                        userId = userIdReal,
+                        metaId = metaCreada.idMeta,
+                        nombre = nuevaMeta.nombreMeta,
+                        fechaObjetivo = nuevaMeta.fechaLimite,
+                        periodicidad = periodicidadAportacion
+                    )
                     _mensajeUI.value = "Meta registrada con éxito"
                     limpiarFormulario()
-                    cargarMetas(userIdReal)
+                    cargarMetas(userIdReal).join()
                 } else {
                     println("DEBUG METAS: el servidor rechazó el guardado; estado=${response.status}")
                     _mensajeUI.value = "Error al registrar la meta"

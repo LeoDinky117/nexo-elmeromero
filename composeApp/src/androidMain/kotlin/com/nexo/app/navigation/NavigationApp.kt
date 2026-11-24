@@ -1,10 +1,17 @@
 package com.nexo.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -21,6 +28,10 @@ import com.nexo.app.ui.screens.MetasScreen
 import com.nexo.app.ui.screens.PerfilScreen
 import com.nexo.app.ui.screens.PresupuestoScreen
 import com.nexo.app.ui.screens.RegistroScreen
+import com.nexo.app.ui.screens.GuiaBienvenidaOverlay
+import com.nexo.app.ui.screens.GuiaFocoState
+import com.nexo.app.ui.screens.LocalGuiaFocoState
+import com.nexo.app.ui.screens.pasosGuiaFoco
 import com.nexo.app.ui.screens.SuccessScreen
 import com.nexo.app.ui.viewModel.MovimientosViewModel
 import com.nexo.app.ui.viewModel.CalendarioViewModel
@@ -30,12 +41,17 @@ import com.nexo.app.ui.viewModel.PerfilViewModel
 import com.nexo.app.ui.LocalNexoPalette
 import com.nexo.app.ui.LocalNexoProfileIcon
 import com.nexo.app.ui.parseNexoPalette
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppNavigation(sessionManager: SessionManager) {
     val navController = rememberNavController()
     val paletteData by sessionManager.temaPaletteFlow.collectAsState(initial = "#C837AB|#0B1019|#161C28|#FF508E")
     val profileIcon by sessionManager.profileIconFlow.collectAsState(initial = "👤")
+    val estadoFoco = remember { GuiaFocoState() }
+    var guiaActiva by remember { mutableStateOf(false) }
+    var pasoGuia by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
 
     // 1. ViewModel de Movimientos con SessionManager
     val  movimientosVM : MovimientosViewModel = viewModel(
@@ -82,8 +98,11 @@ fun AppNavigation(sessionManager: SessionManager) {
 
     CompositionLocalProvider(
       LocalNexoPalette provides parseNexoPalette(paletteData),
-      LocalNexoProfileIcon provides profileIcon
-    ) { NavHost(
+      LocalNexoProfileIcon provides profileIcon,
+      LocalGuiaFocoState provides estadoFoco
+    ) {
+      Box(Modifier.fillMaxSize()) {
+      NavHost(
         navController = navController,
         startDestination = Routes.LOGIN
     ) {
@@ -97,8 +116,12 @@ fun AppNavigation(sessionManager: SessionManager) {
                 onIrARegistro = {
                     navController.navigate(Routes.REGISTRO)
                 },
-                sessionManager = sessionManager,
-                movimientosVM = movimientosVM
+                onIniciarGuia = {
+                    estadoFoco.limpiar()
+                    pasoGuia = 0
+                    guiaActiva = true
+                },
+                sessionManager = sessionManager
             )
         }
         //Se dirige aquí en el caso de que el usuario no tenga una cuenta creada
@@ -106,6 +129,7 @@ fun AppNavigation(sessionManager: SessionManager) {
         composable(Routes.REGISTRO) {
             RegistroScreen(
                 navController = navController, //Aqui se le pasa como parametro el navController
+                sessionManager = sessionManager,
                 onVolverLogin = {
                     navController.navigate(Routes.LOGIN)
                 }
@@ -153,12 +177,22 @@ fun AppNavigation(sessionManager: SessionManager) {
 
             PerfilScreen(navController,
                 perfilVM,
+                onCerrarSesion = {
+                    scope.launch {
+                        guiaActiva = false
+                        sessionManager.cerrarSesionLocal()
+                        navController.navigate(Routes.LOGIN) {
+                            popUpTo(Routes.MAIN_HOME) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
             )
 
         }
 
         composable(Routes.ADD_MOVIMIENTO){
-            AddMovimientoScreen(navController, movimientosVM
+            AddMovimientoScreen(navController, movimientosVM, metasVM, presupuestoVM
             )
         }
 
@@ -166,5 +200,44 @@ fun AppNavigation(sessionManager: SessionManager) {
             SuccessScreen(navController, movimientosVM
             )
         }
-    } }
+    }
+      if (guiaActiva) {
+          GuiaBienvenidaOverlay(
+              pasoActual = pasoGuia,
+              estadoFoco = estadoFoco,
+              onCambiarPaso = { nuevoPaso ->
+                  val indice = nuevoPaso.coerceIn(pasosGuiaFoco.indices)
+                  pasoGuia = indice
+                  val ruta = pasosGuiaFoco[indice].ruta
+                  if (navController.currentDestination?.route != ruta) {
+                      navController.navigate(ruta) {
+                          popUpTo(Routes.MAIN_HOME) { inclusive = false }
+                          launchSingleTop = true
+                      }
+                  }
+              },
+              onTerminar = {
+                  scope.launch {
+                      sessionManager.completeOnboarding(sessionManager.getUserId())
+                      guiaActiva = false
+                      navController.navigate(Routes.MAIN_HOME) {
+                          popUpTo(Routes.MAIN_HOME) { inclusive = false }
+                          launchSingleTop = true
+                      }
+                  }
+              },
+              onConfigurarPresupuesto = {
+                  scope.launch {
+                      sessionManager.completeOnboarding(sessionManager.getUserId())
+                      guiaActiva = false
+                      navController.navigate(Routes.PRESUPUESTO) {
+                          popUpTo(Routes.MAIN_HOME) { inclusive = false }
+                          launchSingleTop = true
+                      }
+                  }
+              }
+          )
+      }
+      }
+    }
 }

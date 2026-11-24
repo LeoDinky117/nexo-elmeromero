@@ -19,6 +19,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nexo.app.ui.LocalNexoPalette
+import com.nexo.app.ui.contrastingTextColor
 
 @Composable
 fun InputField(
@@ -28,9 +30,12 @@ fun InputField(
     keyboardType: KeyboardType = KeyboardType.Text,
     leadingText: String? = null,
     formatDate: Boolean = false,
-    containerColor: Color = Color.White.copy(alpha = 0.08f),
+    containerColor: Color? = null,
     onValueChange: (String) -> Unit
 ) {
+    val colorDeContenedor = containerColor ?: LocalNexoPalette.current.surface
+    val colorTexto = contrastingTextColor(colorDeContenedor)
+    val colorPlaceholder = colorTexto.copy(alpha = 0.62f)
     // Conserva el texto y la selección del cursor entre recomposiciones.
     var inputValue by remember {
         mutableStateOf(TextFieldValue(text = value))
@@ -50,7 +55,7 @@ fun InputField(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                containerColor,
+                colorDeContenedor,
                 RoundedCornerShape(20.dp)
             )
             .padding(horizontal = 16.dp, vertical = 14.dp)
@@ -63,7 +68,7 @@ fun InputField(
             if (leadingText != null) {
                 Text(
                     text = leadingText,
-                    color = Color.White,
+                    color = colorTexto,
                     modifier = Modifier.padding(end = 8.dp)
                 )
             }
@@ -72,7 +77,7 @@ fun InputField(
                 if (inputValue.text.isEmpty()) {
                     Text(
                         text = placeholder,
-                        color = Color.White.copy(alpha = 0.5f)
+                        color = colorPlaceholder
                     )
                 }
 
@@ -128,10 +133,10 @@ fun InputField(
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
                     textStyle = TextStyle(
-                        color = Color.White,
+                        color = colorTexto,
                         fontSize = 16.sp
                     ),
-                    cursorBrush = SolidColor(Color.White)
+                    cursorBrush = SolidColor(LocalNexoPalette.current.accent)
                 )
             }
         }

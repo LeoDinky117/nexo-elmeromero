@@ -32,7 +32,6 @@ import com.nexo.app.navigation.Routes
 //import androidx.navigation.compose.rememberNavController
 import com.nexo.app.ui.components.InputField
 import com.nexo.app.ui.viewModel.LoginViewModel
-import com.nexo.app.ui.viewModel.MovimientosViewModel
 import org.jetbrains.compose.resources.painterResource
 import nexo.composeapp.generated.resources.Res
 import nexo.composeapp.generated.resources.logo_nexo
@@ -42,8 +41,8 @@ import nexo.composeapp.generated.resources.logo_nexo
 fun LoginScreen(
     navController: NavController,
     onIrARegistro: () -> Unit,
-    sessionManager: SessionManager,
-    movimientosVM: MovimientosViewModel
+    onIniciarGuia: () -> Unit,
+    sessionManager: SessionManager
     //viewModel: LoginViewModel = viewModel()
 
 ) {
@@ -57,14 +56,14 @@ fun LoginScreen(
 
     //validacion de usuario existente y navegacion de login exitoso a home
     val loginExitoso by viewModel.loginExitoso.collectAsState()
+    val requiereGuia by viewModel.requiereGuia.collectAsState()
+    val errorMensaje by viewModel.errorMensaje.collectAsState()
     val context = LocalContext.current
     val estaCargando by viewModel.cargando.collectAsState()
 
     LaunchedEffect(loginExitoso){
         println("DEBUG: LaunchedEffect disparado. Valor de loginExitoso: $loginExitoso")
         if (loginExitoso){ //Verificación explíc
-            movimientosVM.cargarDatosDelServidor()
-
             // ta al loginExitoso
             Toast.makeText(context, "¡Bienvenido a tu mundo financiero!", Toast.LENGTH_LONG).show()
             println("DEBUG: Intentando navegar a home...")
@@ -74,6 +73,7 @@ fun LoginScreen(
                 //Es decir si ya está en HOME y le da al boton atras, ya no lo va a regresar al login
                 popUpTo(Routes.LOGIN){inclusive = true}
             }
+            if (requiereGuia) onIniciarGuia()
             //Hacemos un delay para que navegue a home y posterior realice el reset
             //kotlinx.coroutines.delay(500)
             viewModel.resetLoginState()
@@ -129,7 +129,14 @@ fun LoginScreen(
                 isPassword = true,
                 onValueChange = { viewModel.onPasswordChange(it) }
             )
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Para cuentas nuevas, recomendamos una contraseña única de 12 o más caracteres, con letras, números y símbolos. Ejemplo ilustrativo: Brisa!47Nube#Lago (no uses este ejemplo literalmente).",
+                color = Color.White.copy(alpha = 0.68f),
+                fontSize = 12.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(20.dp))
 
             //_________________________ BOTON LOGIN ________________________________________
             Box(
@@ -148,7 +155,8 @@ fun LoginScreen(
                     )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null
+                        indication = null,
+                        enabled = !estaCargando
                     ) { viewModel.login() },
                 contentAlignment = Alignment.Center
             ) {
@@ -157,6 +165,15 @@ fun LoginScreen(
                     color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
+                )
+            }
+            errorMensaje?.let { mensaje ->
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = mensaje,
+                    color = Color(0xFFFF9AA7),
+                    fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
             Spacer(modifier = Modifier.height(20.dp))

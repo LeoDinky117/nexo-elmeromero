@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -19,6 +20,8 @@ class SessionManager(context: Context) {
         val USER_STREAK = intPreferencesKey("user_streak")
         val USER_THEME_PALETTE = stringPreferencesKey("user_theme_palette")
         val USER_PROFILE_ICON = stringPreferencesKey("user_profile_icon")
+        val PENDING_ONBOARDING_EMAIL = stringPreferencesKey("pending_onboarding_email")
+        val ONBOARDING_COMPLETED_USER_IDS = stringSetPreferencesKey("onboarding_completed_user_ids")
     }
 
     // Leemos el ID. Si no existe, devolvemos 0.
@@ -37,6 +40,16 @@ class SessionManager(context: Context) {
             settings[USER_ID] = id
         }
     }
+    /** Cierra la sesión local sin borrar la información persistida en el servidor. */
+    suspend fun cerrarSesionLocal() {
+        applicationContext.dataStore.edit { settings ->
+            settings.remove(USER_ID)
+            settings.remove(USER_POINTS)
+            settings.remove(USER_STREAK)
+            settings.remove(USER_THEME_PALETTE)
+            settings.remove(USER_PROFILE_ICON)
+        }
+    }
     suspend fun saveGamification(puntos: Int, racha: Int) {
         applicationContext.dataStore.edit { settings ->
             settings[USER_POINTS] = puntos
@@ -50,6 +63,24 @@ class SessionManager(context: Context) {
         applicationContext.dataStore.edit { settings ->
             settings[USER_THEME_PALETTE] = palette
             settings[USER_PROFILE_ICON] = icon
+        }
+    }
+    suspend fun markNewRegistration(email: String) {
+        applicationContext.dataStore.edit { settings ->
+            settings[PENDING_ONBOARDING_EMAIL] = email.trim().lowercase()
+        }
+    }
+    suspend fun shouldShowOnboarding(email: String, userId: Int): Boolean {
+        val preferences = applicationContext.dataStore.data.first()
+        val completed = preferences[ONBOARDING_COMPLETED_USER_IDS].orEmpty()
+        return preferences[PENDING_ONBOARDING_EMAIL] == email.trim().lowercase() && userId.toString() !in completed
+    }
+    suspend fun completeOnboarding(userId: Int) {
+        applicationContext.dataStore.edit { settings ->
+            val completed = settings[ONBOARDING_COMPLETED_USER_IDS].orEmpty().toMutableSet()
+            completed += userId.toString()
+            settings[ONBOARDING_COMPLETED_USER_IDS] = completed
+            settings.remove(PENDING_ONBOARDING_EMAIL)
         }
     }
     suspend fun getUserId(): Int{

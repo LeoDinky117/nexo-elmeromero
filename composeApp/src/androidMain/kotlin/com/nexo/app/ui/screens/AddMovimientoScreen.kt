@@ -14,12 +14,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -28,6 +31,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,20 +51,44 @@ import androidx.navigation.NavController
 import androidx.core.content.ContextCompat
 import com.nexo.app.navigation.Routes
 import com.nexo.app.ui.viewModel.MovimientosViewModel
+import com.nexo.app.ui.viewModel.PresupuestoViewModel
+import com.nexo.app.viewmodel.MetasViewModel
+import com.nexo.app.model.GrupoPresupuesto
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import com.nexo.app.ui.LocalNexoPalette
 import nexo.composeapp.generated.resources.*
 import org.jetbrains.compose.resources.painterResource
 
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun AddMovimientoScreen(navController: NavController,
-                        movimientosVM: MovimientosViewModel
+                        movimientosVM: MovimientosViewModel,
+                        metasVM: MetasViewModel,
+                        presupuestoVM: PresupuestoViewModel
                          ) {
 
     val context = LocalContext.current
-    LaunchedEffect(movimientosVM.esIngresoInput) {
-        movimientosVM.cargarCategorias(if (movimientosVM.esIngresoInput) "Ingreso" else "Gasto")
+    LaunchedEffect(Unit) {
+        movimientosVM.onTipoMovimientoChange("Gasto")
+        movimientosVM.onFechaChange(LocalDate.now().toString())
+        metasVM.refrescarMetas()
+        presupuestoVM.refrescar()
     }
+    val metas by metasVM.metas.collectAsState()
+    val presupuestos by presupuestoVM.items.collectAsState()
+    val scope = rememberCoroutineScope()
+    var destinoPago by remember { mutableStateOf("Meta") }
+    var idMetaPago by remember { mutableStateOf<Int?>(null) }
+    var idDeudaPago by remember { mutableStateOf<String?>(null) }
+    var errorPago by remember { mutableStateOf<String?>(null) }
+    var guardandoPago by remember { mutableStateOf(false) }
+    var mostrarCalendario by remember { mutableStateOf(false) }
     var vozEstado by remember { mutableStateOf("") }
     var escuchando by remember { mutableStateOf(false) }
     val viewModelActual by rememberUpdatedState(movimientosVM)
@@ -152,12 +181,13 @@ fun AddMovimientoScreen(navController: NavController,
     val colorFondo = paleta.background
     val colorContenedor = paleta.surface
     val degradadoRosa = Brush.horizontalGradient(listOf(paleta.accent, paleta.highlight))
-    val colorMoradoNexo = paleta.accent
+    val colorMoradoNexo = paleta.accentTextOnSurface
 
     Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(colorFondo)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
         ) {
             // --- HEADER
@@ -174,7 +204,7 @@ fun AddMovimientoScreen(navController: NavController,
                 }
                 Text(
                     "Agregar movimiento",
-                    color = Color.White,
+                    color = paleta.onBackground,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 8.dp)
@@ -188,7 +218,7 @@ fun AddMovimientoScreen(navController: NavController,
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("MONTO", color = Color.Gray, fontSize = 12.sp, letterSpacing = 2.sp,
+                Text("MONTO", color = paleta.secondaryOnBackground, fontSize = 12.sp, letterSpacing = 2.sp,
                     fontWeight = FontWeight.Medium)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -196,7 +226,7 @@ fun AddMovimientoScreen(navController: NavController,
                 ){
                     Text(
                         text = "$",
-                        color = Color.White,
+                        color = paleta.onBackground,
                         fontSize = 48.sp,
                         fontWeight = FontWeight.ExtraBold
 
@@ -205,7 +235,7 @@ fun AddMovimientoScreen(navController: NavController,
                         value = movimientosVM.montoInput,
                         onValueChange = { movimientosVM.onMontoChange(it) },
                         textStyle = TextStyle(
-                            color = Color.White,
+                            color = paleta.onBackground,
                             fontSize = 48.sp,
                             fontWeight = FontWeight.ExtraBold,
                             textAlign = TextAlign.Start
@@ -219,7 +249,7 @@ fun AddMovimientoScreen(navController: NavController,
                             .padding(start = 4.dp),
                         decorationBox = { innerTextField ->
                             if(movimientosVM.montoInput.isEmpty()){
-                                Text("0", color = Color.DarkGray,
+                                Text("0", color = paleta.secondaryOnBackground,
                                     fontSize = 48.sp,
                                     fontWeight = FontWeight.ExtraBold)
                             }
@@ -231,9 +261,9 @@ fun AddMovimientoScreen(navController: NavController,
 
             Spacer(modifier = Modifier.height(30.dp))
 
-            // SELECTOR TIPO (Ingreso / Gasto con Degradado)
+            // Selector de ingreso, gasto o pago.
 
-            Text("Tipo", color = Color.Gray,
+            Text("Tipo", color = paleta.secondaryOnBackground,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 8.dp))
             Row(
@@ -243,47 +273,87 @@ fun AddMovimientoScreen(navController: NavController,
                     .background(colorContenedor, RoundedCornerShape(18.dp))
                     .padding(4.dp)
             ) {
-                // Botón Ingreso (Con Degradado Rosa)
-                Box(modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .background(
-                            if (movimientosVM.esIngresoInput) degradadoRosa
-                            else Brush.linearGradient(
-                                listOf(Color.Transparent, Color.Transparent)
-                            ),
-                            RoundedCornerShape(14.dp)
-                        )
-                        .clickable { movimientosVM.onEsIngresoChange(true) }, contentAlignment = Alignment.Center) {
-                    Text("+ Ingreso", color = if (movimientosVM.esIngresoInput) Color.White else Color.Gray,
-                        fontWeight = FontWeight.Bold)
-                }
-                // Botón Gasto (Oscuro)
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight().background(
-                        if (!movimientosVM.esIngresoInput) degradadoRosa
-                        else Brush.linearGradient(
-                            listOf(Color.Transparent, Color.Transparent)
-                        ),
-                        RoundedCornerShape(14.dp)
-                    )
-                        .clickable { movimientosVM.onEsIngresoChange(false)},
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("- Gasto", color = if (!movimientosVM.esIngresoInput) Color.White else Color.Gray,
-                        fontWeight = FontWeight.Bold)
+                listOf("Ingreso", "Gasto", "Pago").forEach { tipo ->
+                    val seleccionado = when (tipo) {
+                        "Ingreso" -> movimientosVM.esIngresoInput
+                        "Pago" -> movimientosVM.esPagoInput
+                        else -> !movimientosVM.esIngresoInput && !movimientosVM.esPagoInput
+                    }
+                    Box(
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                            .background(if (seleccionado) degradadoRosa else Brush.linearGradient(listOf(Color.Transparent, Color.Transparent)), RoundedCornerShape(14.dp))
+                            .clickable { movimientosVM.onTipoMovimientoChange(tipo); errorPago = null },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(tipo, color = if (seleccionado) paleta.onAccent else paleta.secondaryOnSurface, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // SECCIÓN DE CATEGORÍAS
-            Text("Categoría",
-                color = Color.Gray,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(bottom = 8.dp))
+            if (movimientosVM.esPagoInput) {
+                Text("Pagar a", color = paleta.secondaryOnBackground, fontSize = 14.sp, modifier = Modifier.padding(bottom = 8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf("Meta", "Deuda").forEach { destino ->
+                        FilterChip(
+                            selected = destinoPago == destino,
+                            onClick = { destinoPago = destino; errorPago = null; idMetaPago = null; idDeudaPago = null },
+                            label = { Text(destino) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = paleta.accent,
+                                selectedLabelColor = paleta.onAccent,
+                                labelColor = paleta.onBackground
+                            )
+                        )
+                    }
+                }
+                val opcionesMeta = metas.filter { it.activa && it.totalAhorrado < it.montoObjetivo }
+                val opcionesDeuda = presupuestos.filter {
+                    it.activo && (it.grupo == GrupoPresupuesto.DEUDA || it.grupo == GrupoPresupuesto.DIFERIDO) && (it.saldoActual ?: 0.0) > 0.0
+                }
+                if (destinoPago == "Meta") {
+                    if (opcionesMeta.isEmpty()) Text("No tienes metas activas con saldo pendiente.", color = paleta.secondaryOnBackground)
+                    opcionesMeta.forEach { meta ->
+                        val seleccionado = idMetaPago == meta.idMeta
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { idMetaPago = meta.idMeta; errorPago = null },
+                            colors = CardDefaults.cardColors(containerColor = if (seleccionado) paleta.surface.copy(alpha = .75f) else colorContenedor),
+                            border = if (seleccionado) androidx.compose.foundation.BorderStroke(1.dp, paleta.accent) else null
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(meta.nombreMeta, color = paleta.onSurface, fontWeight = FontWeight.SemiBold)
+                                Text("Falta ${"$"}${"%.2f".format(Locale.US, (meta.montoObjetivo - meta.totalAhorrado).coerceAtLeast(0.0))}", color = paleta.highlightTextOnSurface)
+                            }
+                        }
+                    }
+                } else {
+                    if (opcionesDeuda.isEmpty()) Text("No tienes deudas con saldo pendiente.", color = paleta.secondaryOnBackground)
+                    opcionesDeuda.forEach { deuda ->
+                        val seleccionado = idDeudaPago == deuda.id
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { idDeudaPago = deuda.id; errorPago = null },
+                            colors = CardDefaults.cardColors(containerColor = if (seleccionado) paleta.surface.copy(alpha = .75f) else colorContenedor),
+                            border = if (seleccionado) androidx.compose.foundation.BorderStroke(1.dp, paleta.accent) else null
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(deuda.concepto, color = paleta.onSurface, fontWeight = FontWeight.SemiBold)
+                                Text("Pendiente ${"$"}${"%.2f".format(Locale.US, deuda.saldoActual ?: 0.0)}", color = paleta.highlightTextOnSurface)
+                            }
+                        }
+                    }
+                }
+                errorPago?.let { Text(it, color = Color(0xFFFF7085), modifier = Modifier.padding(top = 8.dp)) }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
-            LazyRow(
+            // SECCIÓN DE CATEGORÍAS
+            if (!movimientosVM.esPagoInput) {
+                Text("Categoría",
+                    color = paleta.secondaryOnBackground,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(bottom = 8.dp))
+                LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -307,7 +377,7 @@ fun AddMovimientoScreen(navController: NavController,
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
                             text = cat.nombre,
-                            color = if (movimientosVM.categoriaSeleccionada == cat.nombre) colorMoradoNexo else Color.Gray,
+                            color = if (movimientosVM.categoriaSeleccionada == cat.nombre) colorMoradoNexo else paleta.secondaryOnSurface,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
                             textAlign = TextAlign.Center
@@ -315,24 +385,38 @@ fun AddMovimientoScreen(navController: NavController,
                     }
 
                 }
+                }
             }
 
 
             Spacer(modifier = Modifier.height(24.dp))
 
         // --- CAMPO DE FECHA
-        Text("Fecha", color = Color.Gray,
+        Text("Fecha", color = paleta.secondaryOnBackground,
             fontSize = 14.sp,
             modifier = Modifier.padding(bottom = 8.dp))
-        TextField(
-            value = movimientosVM.fechaInput,
-            onValueChange = { movimientosVM.onFechaChange(it)},
+        val fechaActual = runCatching { LocalDate.parse(movimientosVM.fechaInput) }.getOrDefault(LocalDate.now())
+        val fechaTexto = if (fechaActual == LocalDate.now()) "Hoy · ${fechaActual.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es", "MX")))}"
+            else fechaActual.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale("es", "MX")))
+        OutlinedTextField(
+            value = fechaTexto,
+            onValueChange = {},
+            readOnly = true,
             leadingIcon = {
                 Image(
                     painter = painterResource(Res.drawable.icon_calendar),
                     contentDescription = null,
                     modifier = Modifier.size(22.dp)
                 )
+            },
+            trailingIcon = {
+                IconButton(onClick = { mostrarCalendario = true }) {
+                    Icon(
+                        painter = painterResource(Res.drawable.icon_calendar),
+                        contentDescription = "Abrir calendario",
+                        tint = paleta.highlightTextOnSurface
+                    )
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -341,26 +425,43 @@ fun AddMovimientoScreen(navController: NavController,
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = paleta.surface,
                 unfocusedContainerColor = paleta.surface,
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
+                focusedTextColor = paleta.onSurface,
+                unfocusedTextColor = paleta.onSurface,
                 focusedIndicatorColor = Color.Transparent,
                 unfocusedIndicatorColor = Color.Transparent
             ),
             singleLine = true
         )
+        if (mostrarCalendario) {
+            val pickerState = rememberDatePickerState(
+                initialSelectedDateMillis = fechaActual.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+            )
+            DatePickerDialog(
+                onDismissRequest = { mostrarCalendario = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pickerState.selectedDateMillis?.let { millis ->
+                            movimientosVM.onFechaChange(Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString())
+                        }
+                        mostrarCalendario = false
+                    }) { Text("Aceptar") }
+                },
+                dismissButton = { TextButton(onClick = { mostrarCalendario = false }) { Text("Cancelar") } }
+            ) { DatePicker(state = pickerState) }
+        }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             // --- CAMPO DE CONCEPTO (TextField Dark Mode con Icono) ---
 
             Text("Concepto",
-                color = Color.Gray,
+                color = paleta.secondaryOnBackground,
                 fontSize = 14.sp,
                 modifier = Modifier.padding(bottom = 8.dp))
             TextField(
                 value = movimientosVM.descripcionInput,
                 onValueChange = { movimientosVM.onDescripcionChanged(it)},
-                placeholder = { Text("Ej. Cena...", color = Color.DarkGray) },
+                placeholder = { Text("Ej. Cena...", color = paleta.secondaryOnSurface) },
                 leadingIcon = { Image(painter = painterResource(Res.drawable.icon_concepto),
                     contentDescription = null, modifier = Modifier.size(20.dp)) },
                 trailingIcon = {
@@ -376,8 +477,8 @@ fun AddMovimientoScreen(navController: NavController,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = colorContenedor,
                     unfocusedContainerColor = colorContenedor,
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
+                    focusedTextColor = paleta.onSurface,
+                    unfocusedTextColor = paleta.onSurface,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
@@ -386,7 +487,7 @@ fun AddMovimientoScreen(navController: NavController,
             if (vozEstado.isNotBlank()) {
                 Text(
                     text = vozEstado,
-                    color = Color.White.copy(alpha = 0.7f),
+                    color = paleta.secondaryOnBackground,
                     fontSize = 11.sp,
                     modifier = Modifier.padding(top = 6.dp, start = 8.dp)
                 )
@@ -397,11 +498,46 @@ fun AddMovimientoScreen(navController: NavController,
             Spacer(modifier = Modifier.height(32.dp))
             Button(
                 onClick = {
-                    movimientosVM.registrarMovimiento {
-                        navController.navigate(Routes.SUCCESS){
-                            popUpTo(Routes.ADD_MOVIMIENTO){inclusive = true}
+                    if (!movimientosVM.esPagoInput) {
+                        movimientosVM.registrarMovimiento {
+                            navController.navigate(Routes.SUCCESS) { popUpTo(Routes.ADD_MOVIMIENTO) { inclusive = true } }
                         }
-
+                    } else if (guardandoPago) {
+                        Unit
+                    } else {
+                        val monto = movimientosVM.montoInput.replace(",", ".").toDoubleOrNull()
+                        val meta = metas.firstOrNull { it.idMeta == idMetaPago && it.activa }
+                        val deuda = presupuestos.firstOrNull {
+                            it.id == idDeudaPago && it.activo &&
+                                (it.grupo == GrupoPresupuesto.DEUDA || it.grupo == GrupoPresupuesto.DIFERIDO) &&
+                                (it.saldoActual ?: 0.0) > 0.0
+                        }
+                        val categoriaPreferida = movimientosVM.categorias.firstOrNull {
+                            it.nombre == if (destinoPago == "Meta") "Otros" else "Deudas"
+                        } ?: movimientosVM.categorias.firstOrNull()
+                        when {
+                            monto == null || monto <= 0.0 -> errorPago = "Escribe un monto mayor que cero."
+                            categoriaPreferida == null -> errorPago = "No hay una categoría de gasto disponible."
+                            destinoPago == "Meta" && meta == null -> errorPago = "Selecciona una meta activa."
+                            destinoPago == "Deuda" && deuda == null -> errorPago = "Selecciona una deuda pendiente."
+                            destinoPago == "Meta" && meta != null && monto > meta.montoObjetivo - meta.totalAhorrado + 0.000001 -> errorPago = "El monto supera lo que falta para completar la meta."
+                            destinoPago == "Deuda" && deuda != null && monto > (deuda.saldoActual ?: 0.0) + 0.000001 -> errorPago = "El monto supera el saldo pendiente de la deuda."
+                            else -> scope.launch {
+                                guardandoPago = true
+                                val exito = if (destinoPago == "Meta" && meta != null) {
+                                    movimientosVM.registrarPagoMeta(meta.idMeta, monto, movimientosVM.fechaInput, "Pago a meta: ${meta.nombreMeta}", categoriaPreferida.idCategoria).also {
+                                        if (it) metasVM.refrescarMetas().join()
+                                    }
+                                } else if (deuda != null) {
+                                    movimientosVM.registrarPagoDeuda("Pago de deuda: ${deuda.concepto}", monto, movimientosVM.fechaInput, categoriaPreferida.idCategoria).also {
+                                        if (it) presupuestoVM.actualizarSaldoDeuda(deuda.id, ((deuda.saldoActual ?: 0.0) - monto).coerceAtLeast(0.0).toString())
+                                    }
+                                } else false
+                                guardandoPago = false
+                                if (exito) navController.navigate(Routes.SUCCESS) { popUpTo(Routes.ADD_MOVIMIENTO) { inclusive = true } }
+                                else errorPago = "No se pudo guardar el pago. Revisa tu conexión e inténtalo de nuevo."
+                            }
+                        }
                     }
                           },
                 modifier = Modifier
@@ -416,7 +552,7 @@ fun AddMovimientoScreen(navController: NavController,
                     modifier = Modifier.fillMaxSize().background(degradadoRosa),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Guardar", color = Color.White,
+                    Text(if (guardandoPago) "Guardando..." else if (movimientosVM.esPagoInput) "Registrar pago" else "Guardar", color = paleta.onAccent,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold)
                 }

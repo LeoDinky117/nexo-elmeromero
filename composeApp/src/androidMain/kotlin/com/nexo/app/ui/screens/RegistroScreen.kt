@@ -29,11 +29,13 @@ import android.widget.Toast
 import androidx.compose.ui.platform.LocalContext
 import com.nexo.app.ui.components.InputField
 import com.nexo.app.viewmodel.RegistroViewModel
+import com.nexo.app.data.local.SessionManager
 
 @Composable
 fun RegistroScreen(
     //Parametros
     navController: NavController,
+    sessionManager: SessionManager,
     viewModel: RegistroViewModel = viewModel(),
     onVolverLogin: () -> Unit
 ) {
@@ -46,6 +48,7 @@ fun RegistroScreen(
     //-------------------------------------------------
     LaunchedEffect(registroExitoso){
         if (registroExitoso){
+            sessionManager.markNewRegistration(viewModel.correo.value)
             Toast.makeText(context, "¡Registro exitoso!", Toast.LENGTH_SHORT).show()
             navController.navigate("login"){
                 popUpTo("registro") { inclusive = true}

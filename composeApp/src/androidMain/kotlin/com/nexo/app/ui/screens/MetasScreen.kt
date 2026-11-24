@@ -10,9 +10,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -40,12 +46,18 @@ import com.nexo.app.viewmodel.MetasViewModel
 import com.nexo.app.ui.components.NexoPullToRefresh
 import com.nexo.app.ui.LocalNexoPalette
 import com.nexo.app.model.ProgresoMetaVista
+import com.nexo.app.model.PeriodicidadAportacionMeta
 import com.nexo.app.ui.viewModel.MovimientosViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.time.ZoneOffset
+import nexo.composeapp.generated.resources.Res
+import nexo.composeapp.generated.resources.icon_calendar
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun MetasScreen(
     navController: NavController,
     viewModel: MetasViewModel,
@@ -57,7 +69,11 @@ fun MetasScreen(
     val context = LocalContext.current
     var metaParaAbonar by remember { mutableStateOf<ProgresoMetaVista?>(null) }
     var montoAbono by remember { mutableStateOf("") }
+    var mostrarCalendario by remember { mutableStateOf(false) }
     val abonoGuardando by viewModel.abonoGuardando.collectAsState()
+    val selectorFecha = rememberDatePickerState(
+        initialSelectedDateMillis = LocalDate.now().plusMonths(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
+    )
 
 
     LaunchedEffect(mensajeUI) {
@@ -90,16 +106,70 @@ fun MetasScreen(
                 .padding(24.dp)
         ) {
             Spacer(modifier = Modifier.height(20.dp))
-            Text("Mis metas", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Mis metas", color = paleta.onBackground, fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.objetivoGuia("goals_title"))
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Crea y visualiza tus objetivos de ahorro", color = Color.White.copy(alpha = 0.75f), fontSize = 14.sp)
+            Text("Crea y visualiza tus objetivos de ahorro", color = paleta.secondaryOnBackground, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(28.dp))
 
             InputField(viewModel.nombreMeta, "Nombre de la meta", containerColor = paleta.surface) { viewModel.onNombreMetaChange(it) }
             Spacer(modifier = Modifier.height(14.dp))
             InputField(viewModel.montoObjetivo, "Monto objetivo", keyboardType = KeyboardType.Decimal, leadingText = "$", containerColor = paleta.surface) { viewModel.onMontoObjetivoChange(it) }
             Spacer(modifier = Modifier.height(14.dp))
-            InputField(viewModel.fechaLimite, "Fecha límite (YYYY-MM-DD)", keyboardType = KeyboardType.Number, formatDate = true, containerColor = paleta.surface) { viewModel.onFechaLimiteChange(it) }
+            OutlinedTextField(
+                value = if (viewModel.fechaLimite.isBlank()) "" else runCatching {
+                    LocalDate.parse(viewModel.fechaLimite).format(DateTimeFormatter.ofPattern("d 'de' MMMM yyyy", Locale.forLanguageTag("es-MX")))
+                }.getOrDefault(viewModel.fechaLimite),
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().clickable { mostrarCalendario = true },
+                label = { Text("Fecha objetivo") },
+                placeholder = { Text("Selecciona una fecha") },
+                trailingIcon = {
+                    IconButton(onClick = { mostrarCalendario = true }) {
+                        Icon(painterResource(Res.drawable.icon_calendar), contentDescription = "Abrir calendario", tint = paleta.accent)
+                    }
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = paleta.onSurface,
+                    unfocusedTextColor = paleta.onSurface,
+                    focusedContainerColor = paleta.surface,
+                    unfocusedContainerColor = paleta.surface,
+                    focusedIndicatorColor = paleta.accent,
+                    unfocusedIndicatorColor = paleta.secondaryOnSurface.copy(alpha = .45f),
+                    focusedLabelColor = paleta.accentTextOnSurface,
+                    unfocusedLabelColor = paleta.secondaryOnSurface,
+                    cursorColor = paleta.accent
+                )
+            )
+            Spacer(modifier = Modifier.height(14.dp))
+            Text("Periodicidad de aportación", color = paleta.secondaryOnBackground, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PeriodicidadAportacionMeta.entries.forEach { periodicidad ->
+                    val seleccionada = viewModel.periodicidadAportacion == periodicidad
+                    Box(
+                        modifier = Modifier.weight(1f)
+                            .background(if (seleccionada) paleta.accent else paleta.surface, RoundedCornerShape(20.dp))
+                            .clickable { viewModel.onPeriodicidadAportacionChange(periodicidad) }
+                            .padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            periodicidad.etiqueta,
+                            color = if (seleccionada) paleta.onAccent else paleta.onSurface,
+                            fontSize = 13.sp,
+                            fontWeight = if (seleccionada) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                "Recibirás un aviso un día antes de cada aportación, hasta la fecha objetivo.",
+                color = paleta.secondaryOnBackground,
+                fontSize = 12.sp
+            )
             Spacer(modifier = Modifier.height(20.dp))
 
             Box(
@@ -114,17 +184,17 @@ fun MetasScreen(
                     ) { viewModel.registrarMeta() },
                 contentAlignment = Alignment.Center
             ) {
-                Text("Guardar meta", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text("Guardar meta", color = paleta.onAccent, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
             }
 
             Spacer(modifier = Modifier.height(30.dp))
-            Text("Progreso de metas", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("Progreso de metas", color = paleta.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
 
             if (cargando) {
                 CircularProgressIndicator(color = paleta.accent)
             } else if (metas.isEmpty()) {
-                Text("Aún no hay metas registradas", color = Color.White.copy(alpha = 0.7f))
+                Text("Aún no hay metas registradas", color = paleta.secondaryOnBackground)
             } else {
                 metas.forEach { meta ->
                     val progreso = if (meta.montoObjetivo > 0) {
@@ -135,10 +205,10 @@ fun MetasScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 18.dp)
-                            .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(18.dp))
+                            .background(paleta.surface, RoundedCornerShape(18.dp))
                             .padding(16.dp)
                     ) {
-                        Text(meta.nombreMeta, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(meta.nombreMeta, color = paleta.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -146,12 +216,12 @@ fun MetasScreen(
                             verticalAlignment = Alignment.Top
                         ) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("Objetivo: $${meta.montoObjetivo}", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
-                                Text("Ahorrado: $${meta.totalAhorrado}", color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp)
+                                Text("Objetivo: $${meta.montoObjetivo}", color = paleta.onSurface, fontSize = 13.sp)
+                                Text("Ahorrado: $${meta.totalAhorrado}", color = paleta.onSurface, fontSize = 13.sp)
                             }
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("Fecha objetivo: ${meta.fechaLimite}", color = Color.White.copy(alpha = 0.75f), fontSize = 12.sp)
-                                Text("Creada: ${meta.fechaCreacion.take(10)}", color = Color.White.copy(alpha = 0.65f), fontSize = 12.sp)
+                                Text("Fecha objetivo: ${meta.fechaLimite}", color = paleta.secondaryOnSurface, fontSize = 12.sp)
+                                Text("Creada: ${meta.fechaCreacion.take(10)}", color = paleta.secondaryOnSurface, fontSize = 12.sp)
                             }
                         }
                         val completada = !meta.activa || progreso >= 1f
@@ -168,7 +238,7 @@ fun MetasScreen(
                         ) {
                             Text(
                                 estado,
-                                color = if (completada) Color(0xFF55D68B) else paleta.accent,
+                                color = if (completada) Color(0xFF55D68B) else paleta.accentTextOnSurface,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp
                             )
@@ -197,7 +267,7 @@ fun MetasScreen(
                                     .padding(horizontal = 18.dp, vertical = 10.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("＋ Abonar", color = Color(0xFF101722), fontWeight = FontWeight.Bold)
+                            Text("＋ Abonar", color = paleta.onAccent, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -208,13 +278,28 @@ fun MetasScreen(
         }
     }
 
+    if (mostrarCalendario) {
+        DatePickerDialog(
+            onDismissRequest = { mostrarCalendario = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectorFecha.selectedDateMillis?.let { millis ->
+                        viewModel.onFechaLimiteChange(LocalDate.ofEpochDay(millis / 86_400_000L).toString())
+                    }
+                    mostrarCalendario = false
+                }) { Text("Seleccionar", color = paleta.accentTextOnBackground) }
+            },
+            dismissButton = { TextButton(onClick = { mostrarCalendario = false }) { Text("Cancelar") } }
+        ) { DatePicker(state = selectorFecha) }
+    }
+
     metaParaAbonar?.let { meta ->
         AlertDialog(
             onDismissRequest = { if (!abonoGuardando) metaParaAbonar = null },
             title = { Text("Abonar a ${meta.nombreMeta}") },
             containerColor = paleta.surface,
-            titleContentColor = Color.White,
-            textContentColor = Color(0xFFB8C2D1),
+            titleContentColor = paleta.onSurface,
+            textContentColor = paleta.secondaryOnSurface,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Falta $${"%.2f".format(Locale.US, (meta.montoObjetivo - meta.totalAhorrado).coerceAtLeast(0.0))} para completar la meta.")
@@ -230,14 +315,14 @@ fun MetasScreen(
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         colors = TextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = paleta.onBackground,
+                            unfocusedTextColor = paleta.onBackground,
                             focusedContainerColor = paleta.background,
                             unfocusedContainerColor = paleta.background,
                             focusedIndicatorColor = paleta.accent,
                             unfocusedIndicatorColor = paleta.accent.copy(alpha = .45f),
-                            focusedLabelColor = paleta.accent,
-                            unfocusedLabelColor = Color.White.copy(alpha = .65f)
+                            focusedLabelColor = paleta.accentTextOnBackground,
+                            unfocusedLabelColor = paleta.secondaryOnBackground
                         )
                     )
                 }
@@ -248,7 +333,7 @@ fun MetasScreen(
                         movimientosViewModel.registrarMovimientoPresupuesto(concepto, monto)
                     }
                     metaParaAbonar = null
-                }) { Text(if (abonoGuardando) "Guardando…" else "Guardar abono", color = paleta.accent) }
+                }) { Text(if (abonoGuardando) "Guardando…" else "Guardar abono", color = paleta.accentTextOnBackground) }
             },
             dismissButton = {
                 TextButton(enabled = !abonoGuardando, onClick = { metaParaAbonar = null }) { Text("Cancelar") }

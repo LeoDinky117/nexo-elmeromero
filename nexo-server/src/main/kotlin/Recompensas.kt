@@ -384,7 +384,7 @@ fun Application.configureRecompensas() {
                     multipart.forEachPart { parte ->
                         try {
                             if (parte is PartData.FileItem && parte.name == "icono" && imagen == null) {
-                            val contenido = parte.provider().readRemaining(TAMANO_MAXIMO_ICONO + 1L).readByteArray()
+                                val contenido = parte.provider().readRemaining(TAMANO_MAXIMO_ICONO + 1L).readByteArray()
                                 require(contenido.size <= TAMANO_MAXIMO_ICONO) { "La imagen debe pesar como máximo 2 MB." }
                                 imagen = contenido
                             }

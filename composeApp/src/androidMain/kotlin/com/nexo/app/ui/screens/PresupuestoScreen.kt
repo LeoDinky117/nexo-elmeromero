@@ -24,6 +24,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ModalBottomSheet
@@ -67,6 +69,9 @@ import com.nexo.app.ui.viewModel.MovimientosViewModel
 import com.nexo.app.navigation.Routes
 import com.nexo.app.ui.components.NexoPullToRefresh
 import com.nexo.app.ui.LocalNexoPalette
+import com.nexo.app.ui.readableForeground
+import nexo.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.painterResource
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.YearMonth
@@ -137,8 +142,8 @@ fun PresupuestoScreen(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text("Mi presupuesto", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            Text("Una vista clara de tu saldo y tus próximos compromisos.", color = Color(0xFFB8C2D1), fontSize = 14.sp)
+            Text("Mi presupuesto", color = paleta.onBackground, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text("Una vista clara de tu saldo y tus próximos compromisos.", color = paleta.secondaryOnBackground, fontSize = 14.sp)
 
             SaldoRegistradoCard(resumen.saldoCuenta)
 
@@ -165,15 +170,15 @@ fun PresupuestoScreen(
             Card(colors = CardDefaults.cardColors(containerColor = paleta.surface), shape = RoundedCornerShape(16.dp)) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Necesidades básicas al mes", color = Color.White, fontWeight = FontWeight.SemiBold)
-                        Text("Se calcula con los gastos que marques como esenciales.", color = Color(0xFFB8C2D1), fontSize = 12.sp)
+                        Text("Necesidades básicas al mes", color = paleta.onSurface, fontWeight = FontWeight.SemiBold)
+                        Text("Se calcula con los gastos que marques como esenciales.", color = paleta.secondaryOnSurface, fontSize = 12.sp)
                     }
                     Text(dinero(resumen.necesidadesBasicas), color = paleta.accent, fontWeight = FontWeight.Bold)
                 }
             }
 
-            Text("Registro de presupuesto", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 19.sp)
-            Text("Organiza ingresos y gastos por tipo. Toca una sección para ver su contenido.", color = Color(0xFFB8C2D1), fontSize = 13.sp)
+            Text("Registro de presupuesto", color = paleta.onBackground, fontWeight = FontWeight.Bold, fontSize = 19.sp, modifier = Modifier.objetivoGuia("budget_title"))
+            Text("Organiza ingresos y gastos por tipo. Toca una sección para ver su contenido.", color = paleta.secondaryOnBackground, fontSize = 13.sp)
             val esenciales = items.filter { (it.esencial && it.grupo !in setOf(GrupoPresupuesto.DEUDA, GrupoPresupuesto.DIFERIDO)) || it.flujo == FlujoPresupuesto.INGRESO }
             val conceptosEsencialesPendientes = CatalogoConceptosPresupuesto.conceptos.filter { concepto ->
                 concepto.flujo == FlujoPresupuesto.EGRESO && concepto.esencial && concepto.grupo !in setOf(GrupoPresupuesto.DEUDA, GrupoPresupuesto.DIFERIDO) &&
@@ -496,7 +501,15 @@ private fun SelectorFechaPresupuesto(
     OutlinedTextField(
         value = fecha.format(DateTimeFormatter.ofPattern("d 'de' MMMM yyyy", Locale.forLanguageTag("es-MX"))),
         onValueChange = {}, readOnly = true, modifier = Modifier.fillMaxWidth(),
-        label = { Text(etiqueta) }, trailingIcon = { TextButton(onClick = { mostrarCalendario = true }) { Text("Calendario", color = palette.accent) } },
+        label = { Text(etiqueta) }, trailingIcon = {
+            IconButton(onClick = { mostrarCalendario = true }) {
+                Icon(
+                    painter = painterResource(Res.drawable.icon_calendar),
+                    contentDescription = "Abrir calendario",
+                    tint = palette.accent
+                )
+            }
+        },
         colors = presupuestoFieldColors()
     )
     if (mostrarCalendario) {
@@ -533,19 +546,19 @@ private fun SeccionRegistroCard(
         Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(titulo, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("$subtitulo · ${items.size} registrados${if (pendientes.isNotEmpty()) " · ${pendientes.size} por configurar" else ""}", color = Color(0xFFB8C2D1), fontSize = 12.sp)
+                    Text(titulo, color = palette.onSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("$subtitulo · ${items.size} registrados${if (pendientes.isNotEmpty()) " · ${pendientes.size} por configurar" else ""}", color = palette.secondaryOnSurface, fontSize = 12.sp)
                 }
-                Text(dinero(total), color = palette.accent, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(dinero(total), color = palette.accentTextOnSurface, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Box(
                     Modifier.padding(start = 8.dp).size(34.dp).background(palette.accent.copy(alpha = 0.18f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(if (expandida) "⌃" else "⌄", color = palette.highlight, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                    Text(if (expandida) "⌃" else "⌄", color = palette.highlightTextOnSurface, fontSize = 19.sp, fontWeight = FontWeight.Bold)
                 }
             }
             if (expandida) {
-                if (items.isEmpty() && pendientes.isEmpty()) Text("Todavía no hay registros en esta sección.", color = Color(0xFFB8C2D1), fontSize = 13.sp)
+                if (items.isEmpty() && pendientes.isEmpty()) Text("Todavía no hay registros en esta sección.", color = palette.secondaryOnSurface, fontSize = 13.sp)
                 items.forEach { item ->
                     ItemPresupuestoCard(item, onEliminar = { onEliminar(item) }, onEditar = { onEditar(item) }, onEditarSaldo = { onEditarSaldo(item) })
                 }
@@ -556,10 +569,10 @@ private fun SeccionRegistroCard(
                     ) {
                         Text(VisualConceptoCalendario.icono(concepto.nombre), fontSize = 22.sp)
                         Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text(concepto.nombre, color = Color.White, fontWeight = FontWeight.SemiBold)
-                            Text("Esencial · sin configurar", color = Color(0xFFB8C2D1), fontSize = 11.sp)
+                            Text(concepto.nombre, color = palette.onBackground, fontWeight = FontWeight.SemiBold)
+                            Text("Esencial · sin configurar", color = palette.secondaryOnBackground, fontSize = 11.sp)
                         }
-                        TextButton(onClick = { onAgregarPendiente(concepto) }) { Text("Configurar +", color = palette.highlight) }
+                        TextButton(onClick = { onAgregarPendiente(concepto) }) { Text("Configurar +", color = palette.highlightTextOnSurface) }
                     }
                 }
                 Button(
@@ -567,9 +580,9 @@ private fun SeccionRegistroCard(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = palette.accent)
-                ) { Text("Agregar otro", color = Color(0xFF111A27), fontWeight = FontWeight.Bold) }
+                ) { Text("Agregar otro", color = palette.onAccent, fontWeight = FontWeight.Bold) }
             } else {
-                TextButton(onClick = onAgregar, modifier = Modifier.align(Alignment.End)) { Text("Agregar +", color = palette.highlight, fontWeight = FontWeight.Bold) }
+                TextButton(onClick = onAgregar, modifier = Modifier.align(Alignment.End)) { Text("Agregar +", color = palette.highlightTextOnSurface, fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -579,15 +592,15 @@ private fun SeccionRegistroCard(
 private fun presupuestoFieldColors() = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
     focusedContainerColor = LocalNexoPalette.current.surface,
     unfocusedContainerColor = LocalNexoPalette.current.surface,
-    focusedTextColor = Color.White,
-    unfocusedTextColor = Color.White,
+    focusedTextColor = LocalNexoPalette.current.onSurface,
+    unfocusedTextColor = LocalNexoPalette.current.onSurface,
     cursorColor = LocalNexoPalette.current.accent,
     focusedBorderColor = LocalNexoPalette.current.accent,
     unfocusedBorderColor = Color(0xFF526176),
-    focusedLabelColor = LocalNexoPalette.current.accent,
-    unfocusedLabelColor = Color(0xFFB8C2D1),
-    focusedPrefixColor = Color.White,
-    unfocusedPrefixColor = Color(0xFFB8C2D1),
+    focusedLabelColor = LocalNexoPalette.current.accentTextOnSurface,
+    unfocusedLabelColor = LocalNexoPalette.current.secondaryOnSurface,
+    focusedPrefixColor = LocalNexoPalette.current.onSurface,
+    unfocusedPrefixColor = LocalNexoPalette.current.secondaryOnSurface,
     errorBorderColor = Color(0xFFFF7585),
     errorLabelColor = Color(0xFFFF7585),
     errorSupportingTextColor = Color(0xFFFF9BA5)
@@ -606,11 +619,11 @@ private fun SaldoRegistradoCard(saldo: Double) {
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("Saldo registrado", color = Color(0xFFD7C7F2), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Saldo registrado", color = paleta.secondaryOnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     buildAnnotatedString {
-                        withStyle(SpanStyle(color = paleta.highlight)) { append("$") }
-                        withStyle(SpanStyle(color = Color.White)) {
+                        withStyle(SpanStyle(color = paleta.highlightTextOnSurface)) { append("$") }
+                        withStyle(SpanStyle(color = paleta.onSurface)) {
                             append(NumberFormat.getNumberInstance(Locale.forLanguageTag("es-MX")).apply {
                                 minimumFractionDigits = 2
                                 maximumFractionDigits = 2
@@ -620,14 +633,14 @@ private fun SaldoRegistradoCard(saldo: Double) {
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold
                 )
-                Text("Dinero disponible en tu cuenta", color = Color(0xFFB8C2D1), fontSize = 12.sp)
+                Text("Dinero disponible en tu cuenta", color = paleta.secondaryOnSurface, fontSize = 12.sp)
             }
             Spacer(Modifier.size(16.dp))
             Box(
                 Modifier.size(58.dp).background(paleta.accent.copy(alpha = 0.16f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Text("$", color = paleta.highlight, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+                Text("$", color = paleta.highlightTextOnSurface, fontSize = 34.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -653,17 +666,17 @@ private fun ResumenCompactoCard(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(titulo, color = Color(0xFFB8C2D1), fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2)
+            Text(titulo, color = paleta.secondaryOnSurface, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 2)
             Text(
                 dinero(monto),
-                color = if (monto < 0) Color(0xFFFF526F) else colorPositivo,
+                color = if (monto < 0) readableForeground(Color(0xFFFF526F), paleta.surface) else if (colorPositivo == Color.White) paleta.onSurface else readableForeground(colorPositivo, paleta.surface),
                 fontSize = 19.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
             if (mostrarBoton) {
                 TextButton(onClick = onClick, contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
-                    Text("Ver detalle  ›", color = paleta.highlight, fontSize = 12.sp)
+                    Text("Ver detalle  ›", color = paleta.highlightTextOnSurface, fontSize = 12.sp)
                 }
             } else {
                 Text(nota, color = Color(0xFF8995A7), fontSize = 11.sp, maxLines = 1)
@@ -681,8 +694,8 @@ private fun BalanceSaldoDeudaCard(saldo: Double, deuda: Double) {
     val proporcionSaldo = if (total > 0.0) (saldoPositivo / total).toFloat().coerceIn(0f, 1f) else 0f
     Card(colors = CardDefaults.cardColors(containerColor = paleta.surface), shape = RoundedCornerShape(18.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Tu panorama · saldo vs. deuda", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            Text("Una vista rápida de lo que tienes registrado y tus deudas pendientes.", color = Color(0xFFB8C2D1), fontSize = 12.sp)
+            Text("Tu panorama · saldo vs. deuda", color = paleta.onSurface, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("Una vista rápida de lo que tienes registrado y tus deudas pendientes.", color = paleta.secondaryOnSurface, fontSize = 12.sp)
             Row(
                 Modifier.fillMaxWidth().height(13.dp).background(Color(0xFF303A4A), CircleShape),
                 verticalAlignment = Alignment.CenterVertically
@@ -694,12 +707,12 @@ private fun BalanceSaldoDeudaCard(saldo: Double, deuda: Double) {
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Saldo registrado", color = Color(0xFF72DCAF), fontSize = 11.sp)
-                    Text(dinero(saldo), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Saldo registrado", color = readableForeground(Color(0xFF72DCAF), paleta.surface), fontSize = 11.sp)
+                    Text(dinero(saldo), color = paleta.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("Deuda pendiente", color = Color(0xFFFF829E), fontSize = 11.sp)
-                    Text(dinero(deuda), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Deuda pendiente", color = readableForeground(Color(0xFFFF829E), paleta.surface), fontSize = 11.sp)
+                    Text(dinero(deuda), color = paleta.onSurface, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
             }
         }
@@ -719,8 +732,8 @@ private fun CompromisoProximoRow(evento: EventoCalendario, periodicidad: Periodi
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text(evento.concepto, color = Color.White, fontWeight = FontWeight.SemiBold)
-                    Text("Pago · $fecha · ${periodicidadTexto(periodicidad)}", color = Color(0xFFB8C2D1), fontSize = 12.sp)
+                Text(evento.concepto, color = paleta.onSurface, fontWeight = FontWeight.SemiBold)
+                    Text("Pago · $fecha · ${periodicidadTexto(periodicidad)}", color = paleta.secondaryOnSurface, fontSize = 12.sp)
             }
             Text(dinero(evento.monto), color = Color(0xFFFF7899), fontWeight = FontWeight.Bold, fontSize = 14.sp)
         }
@@ -736,19 +749,20 @@ private fun ItemPresupuestoCard(item: ItemPresupuesto, onEliminar: () -> Unit, o
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(VisualConceptoCalendario.icono(item.concepto), fontSize = 20.sp)
-                        Text(item.concepto, color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+                        Text(item.concepto, color = paleta.onSurface, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
                     }
                     val tipo = if (item.flujo == FlujoPresupuesto.INGRESO) "Ingreso" else if (item.esencial) "Esencial" else "Compromiso"
-                    Text("$tipo · ${periodicidadTexto(item.periodicidad)} · día ${item.diaPago}${item.diaCorte?.let { " · corte $it" } ?: ""}${item.mesesPlazo?.let { " · $it meses" } ?: ""}", color = Color(0xFFB8C2D1), fontSize = 12.sp)
+                    Text("$tipo · ${periodicidadTexto(item.periodicidad)} · día ${item.diaPago}${item.diaCorte?.let { " · corte $it" } ?: ""}${item.mesesPlazo?.let { " · $it meses" } ?: ""}", color = paleta.secondaryOnSurface, fontSize = 12.sp)
                 }
-                Text(dinero(item.montoMensual), color = if (item.flujo == FlujoPresupuesto.INGRESO) Color(0xFF7AD68A) else Color(0xFFFF7A9E), fontWeight = FontWeight.Bold)
+                val colorMonto = if (item.flujo == FlujoPresupuesto.INGRESO) Color(0xFF7AD68A) else Color(0xFFFF7A9E)
+                Text(dinero(item.montoMensual), color = readableForeground(colorMonto, paleta.surface), fontWeight = FontWeight.Bold)
             }
             item.saldoActual?.let { actual ->
-                Text("Saldo: ${dinero(actual)} / inicial ${dinero(item.saldoInicial ?: 0.0)}", color = Color(0xFFB8C2D1), fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                TextButton(onClick = onEditarSaldo) { Text("Registrar pago / ajustar saldo") }
+                Text("Saldo: ${dinero(actual)} / inicial ${dinero(item.saldoInicial ?: 0.0)}", color = paleta.secondaryOnSurface, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                TextButton(onClick = onEditarSaldo) { Text("Registrar pago / ajustar saldo", color = paleta.accentTextOnSurface) }
             }
             Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onEditar) { Text("Editar", color = paleta.highlight) }
+                TextButton(onClick = onEditar) { Text("Editar", color = paleta.highlightTextOnSurface) }
                 androidx.compose.material3.IconButton(onClick = onEliminar) {
                     Text("🗑", color = Color(0xFFFF8A8A), fontSize = 20.sp)
                 }

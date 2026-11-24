@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -137,7 +138,8 @@ fun MainHome(navController: NavController,
                     .clip(CircleShape)
                     .background(Brush.horizontalGradient(listOf(Color(0xFFFFB04A), Color(0xFFFF508E))))
                     .border(2.dp, Color.White.copy(alpha = 0.82f), CircleShape)
-                    .clickable { navController.navigate(Routes.ADD_MOVIMIENTO) },
+                    .clickable { navController.navigate(Routes.ADD_MOVIMIENTO) }
+                    .objetivoGuia("home_add"),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -166,8 +168,8 @@ fun MainHome(navController: NavController,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Buenos días,", color = Color.Gray, fontSize = 14.sp)
-                    Text("Bienvenido", color = Color.White, fontSize = 28.sp,
+                    Text("Buenos días,", color = paleta.secondaryOnBackground, fontSize = 14.sp)
+                    Text("Bienvenido", color = paleta.onBackground, fontSize = 28.sp,
                         fontWeight = FontWeight.Bold)
                 }
 
@@ -201,7 +203,7 @@ fun MainHome(navController: NavController,
                             .fillMaxHeight()
                             .background(degradadoRosa, CircleShape))
                     }
-                    Text("${movimientosVM.puntos % 100} / 100 puntos · ${movimientosVM.puntos} acumulados", color = Color.Gray, fontSize = 12.sp, modifier = Modifier
+                    Text("${movimientosVM.puntos % 100} / 100 puntos · ${movimientosVM.puntos} acumulados", color = paleta.secondaryOnSurface, fontSize = 12.sp, modifier = Modifier
                         .align(Alignment.End)
                         .padding(top = 4.dp))
                 }
@@ -214,10 +216,10 @@ fun MainHome(navController: NavController,
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Saldo", color = Color.LightGray, fontSize = 16.sp)
+                Text("Saldo", color = paleta.secondaryOnBackground, fontSize = 16.sp)
                 Text(
                     "$${movimientosVM.saldoTotal}",
-                    color = Color.White,
+                    color = paleta.onBackground,
                     fontSize = 48.sp,
                     fontWeight = FontWeight.ExtraBold)
             }
@@ -227,9 +229,9 @@ fun MainHome(navController: NavController,
             // --- SECCIÓN ÚLTIMOS MOVIMIENTOS ---
 
 
-            Text("Últimos movimientos", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Últimos movimientos", color = paleta.onBackground, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(16.dp))
-             val ultimosCinco = movimientosVM.listaDeMovimientos.reversed().take(5)
+             val ultimosCinco = movimientosVM.listaDeMovimientos.take(5)
 
             ultimosCinco.forEach { movimiento ->
                 val esGasto = movimiento.monto < 0
@@ -278,6 +280,7 @@ fun MainHome(navController: NavController,
 
 @Composable
 fun MyBottomBar(navController: NavController) {
+    val paleta = LocalNexoPalette.current
     val items = listOf(
         BottomBarItem.Inicio,
         BottomBarItem.Movimientos,
@@ -288,8 +291,8 @@ fun MyBottomBar(navController: NavController) {
     )
 
     NavigationBar(
-        containerColor = LocalNexoPalette.current.background,
-        contentColor = Color.White
+        containerColor = paleta.background,
+        contentColor = paleta.onBackground
     ) {
         // Obtenemos la ruta actual para saber qué icono resaltar
         val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -306,7 +309,7 @@ fun MyBottomBar(navController: NavController) {
                     }
                 },
                 icon = {
-                    val iconColor = if (currentRoute == item.route) LocalNexoPalette.current.accent else Color.Gray
+                    val iconColor = if (currentRoute == item.route) paleta.onAccent else paleta.secondaryOnBackground
                     if (item == BottomBarItem.Perfil) {
                         if (LocalNexoProfileIcon.current == "👤") PerfilGlyph(modifier = Modifier.size(26.dp), color = iconColor)
                         else RewardVisual(LocalNexoProfileIcon.current, modifier = Modifier.size(26.dp), emojiFontSize = 23.sp)
@@ -320,8 +323,16 @@ fun MyBottomBar(navController: NavController) {
                     }
                 },
                 label = {
-                    Text(item.title, fontSize = 12.sp, color = if (currentRoute == item.route) Color.White else Color.Gray)
-                }
+                    Text(item.title, fontSize = 8.sp, maxLines = 1, softWrap = false,
+                        color = if (currentRoute == item.route) paleta.onBackground else paleta.secondaryOnBackground)
+                },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = paleta.onAccent,
+                    selectedTextColor = paleta.onBackground,
+                    unselectedIconColor = paleta.secondaryOnBackground,
+                    unselectedTextColor = paleta.secondaryOnBackground,
+                    indicatorColor = paleta.accent
+                )
             )
         }
     }
@@ -411,10 +422,10 @@ fun ItemMovimiento(
         Spacer(modifier = Modifier.width(16.dp))
         // Textos
         Column(modifier = Modifier.weight(1f)) {
-            Text(titulo, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(titulo, color = paleta.onSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             Text(
                 if (fecha.isNullOrBlank()) sub else "$sub · $fecha",
-                color = Color(0xFFB8C2D1), fontSize = 12.sp
+                color = paleta.secondaryOnSurface, fontSize = 12.sp
             )
         }
         // Monto

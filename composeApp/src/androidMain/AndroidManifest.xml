@@ -60,6 +60,14 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+        <receiver
+                android:name="com.nexo.app.util.RecordatorioMetaReceiver"
+                android:exported="false">
+            <intent-filter>
+                <action android:name="com.nexo.app.action.META_CONTRIBUTION_REMINDER" />
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <activity
                 android:name="com.nexo.app.widgets.CapturaMovimientoActivity"
                 android:exported="false"
